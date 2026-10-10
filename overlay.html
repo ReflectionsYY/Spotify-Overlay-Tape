@@ -15,7 +15,22 @@
 
   .lists { width: 210px; flex: none; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
   .no-lists .lists { display: none; }
-  .lists h3 { font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding: 10px 12px 6px; }
+  .head { display: flex; align-items: center; gap: 4px; min-height: 34px; padding: 4px 8px 2px 6px; }
+  .lists h3 { flex: 1; min-width: 0; font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding: 4px 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .browsing .lists h3 { text-transform: none; letter-spacing: 0; font-size: 12.5px; color: var(--text); padding-left: 2px; }
+  .back, .lplay { width: 24px; height: 24px; flex: none; display: none; }
+  .browsing .back, .browsing .lplay { display: grid; }
+  .back { color: var(--dim); } .back:hover { color: var(--text); } .back svg { width: 18px; height: 18px; }
+  .lplay { background: var(--green); color: #111; } .lplay:hover { background: #3be477; } .lplay svg { width: 13px; height: 13px; }
+  [hidden] { display: none !important; }
+  .tr { padding: 4px 6px; border-radius: 8px; cursor: pointer; }
+  .tr:hover { background: rgba(255,255,255,.07); }
+  .tr:active { transform: scale(.98); }
+  .tr b, .tr i { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tr b { font-size: 12px; font-weight: 500; color: #dfe2e5; }
+  .tr i { font-style: normal; font-size: 11px; color: var(--dim); }
+  .tr.cur b { color: var(--green); }
   .scroll { overflow-y: auto; flex: 1; padding: 0 6px 8px; }
   .scroll::-webkit-scrollbar { width: 4px; } .scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 4px; }
   .pl { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; cursor: pointer; font-size: 12.5px; color: #dfe2e5; }
@@ -38,7 +53,11 @@
   .fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: var(--green); }
   .times { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
   .times .left { color: var(--text); font-weight: 600; }
-  .controls { display: flex; align-items: center; gap: 10px; }
+  .controls { display: flex; align-items: center; gap: 6px; }
+  .shuf { position: relative; color: var(--dim); } .shuf:hover { color: var(--text); }
+  .shuf.on { color: var(--green); }
+  .shuf.on::after { content: ''; position: absolute; bottom: 2px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--green); }
+  .no-api .shuf { display: none; }
   button { background: none; border: none; color: var(--text); cursor: pointer; border-radius: 50%; display: grid; place-items: center; transition: transform 100ms ease-out, background 120ms; }
   button:hover { background: rgba(255,255,255,.09); }
   button:active { transform: scale(.92); }
@@ -48,7 +67,7 @@
   .key { font-size: 11px; color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
   .vol { display: flex; align-items: center; gap: 6px; color: var(--dim); margin-left: 6px; }
   .vol svg { width: 17px; height: 17px; flex: none; }
-  .vol input { width: 92px; accent-color: #8f7bff; height: 4px; cursor: pointer; }
+  .vol input { width: 76px; accent-color: #8f7bff; height: 4px; cursor: pointer; }
   .mic.rec { background: rgba(143,123,255,.25); color: #c9bfff; animation: pulse 1s ease-in-out infinite; }
   .mic.busy { color: #8fd3ff; }
   .no-voice .mic { display: none; }
@@ -61,8 +80,13 @@
 <body>
 <div class="panel" id="panel">
   <div class="lists">
-    <h3>Playlists</h3>
+    <div class="head">
+      <button class="back" id="back" title="Back to playlists"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4-4.6-4.6z"/></svg></button>
+      <h3 id="listName">Playlists</h3>
+      <button class="lplay" id="lplay" title="Play this playlist"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+    </div>
     <div class="scroll" id="lists"><div class="connect" id="connectNote">Connect Spotify in Settings (gear button) to see your playlists here.</div></div>
+    <div class="scroll" id="tracks" hidden></div>
   </div>
   <div class="now">
     <div class="art" id="art"></div>
@@ -73,6 +97,7 @@
       <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
       <div class="times"><span id="pos">0:00</span><span class="left" id="left">-0:00</span></div>
       <div class="controls">
+        <button class="sm shuf" id="shuf" title="Shuffle"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></button>
         <button class="sm" id="prev" title="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12 18 18V6z"/></svg></button>
         <button class="big" id="play" title="Play / pause"><svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
         <button class="sm" id="next" title="Skip"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
@@ -145,8 +170,55 @@
       $('art').style.backgroundImage = s.art ? `url("${s.art}")` : 'none';
     }
     const note = $('connectNote'); if (s.connected && note) note.style.display = 'none';   // gone once playlists are listed
+    document.body.classList.toggle('no-api', !s.connected);
+    if (s.title !== lastTitle) { lastTitle = s.title; markCurrent(); }
     render();
   });
+
+  // ---------------------------------------------------------------- browsing a playlist (click one to open it, scroll its songs)
+  let view = null, lastTitle = null;   // view: { uri, name, next, loading }
+  function openList(p) {
+    view = { uri: p.uri, name: p.name, next: 0, loading: false };
+    document.body.classList.add('browsing');
+    $('listName').textContent = p.name; $('listName').title = p.name;
+    $('lists').hidden = true; const box = $('tracks'); box.innerHTML = ''; box.hidden = false; box.scrollTop = 0;
+    loadMore();
+  }
+  function closeList() {
+    view = null; document.body.classList.remove('browsing');
+    $('listName').textContent = 'Playlists'; $('listName').title = '';
+    $('tracks').hidden = true; $('tracks').innerHTML = ''; $('lists').hidden = false;
+  }
+  async function loadMore() {
+    const v = view; if (!v || v.loading || v.next === null) return;
+    v.loading = true;
+    const r = await window.overlay.tracks(v.uri, v.next);
+    if (view !== v) return;                   // went back / opened another list meanwhile
+    v.loading = false; v.next = r.next;
+    const box = $('tracks');
+    if (r.error && !box.children.length) {
+      box.innerHTML = `<div class="connect">${r.error === 'reconnect' ? 'Reconnect Spotify in Settings (gear button) once to browse Liked Songs.' : "Couldn't load this playlist."}</div>`;
+      return;
+    }
+    for (const t of r.items) {
+      const row = document.createElement('div'); row.className = 'tr'; row.title = t.name + ' - ' + t.artist; row.dataset.name = t.name;
+      const b = document.createElement('b'), i = document.createElement('i'); b.textContent = t.name; i.textContent = t.artist;
+      row.append(b, i); row.onclick = () => { window.overlay.playPlaylist(v.uri, t.pos); armHide(); };
+      box.appendChild(row);
+    }
+    markCurrent();
+    if (box.scrollHeight <= box.clientHeight + 60) loadMore();   // keep filling until the list can scroll
+  }
+  function markCurrent() { for (const row of $('tracks').children) row.classList.toggle('cur', !!st && st.active && row.dataset.name === st.title); }
+  $('tracks').addEventListener('scroll', (e) => { const b = e.currentTarget; if (b.scrollTop + b.clientHeight > b.scrollHeight - 120) loadMore(); });
+  $('back').onclick = closeList;
+  $('lplay').onclick = () => { if (view) { window.overlay.playPlaylist(view.uri); armHide(); } };
+
+  // ---------------------------------------------------------------- shuffle (Spotify's own shuffle setting)
+  let shuffleOn = false;
+  function setShuf(on) { shuffleOn = on; $('shuf').classList.toggle('on', on); $('shuf').title = on ? 'Shuffle: on' : 'Shuffle: off'; }
+  window.overlay.on('shuffle', setShuf);
+  $('shuf').onclick = async () => { const want = !shuffleOn; setShuf(want); if ((await window.overlay.shuffle(want)) === null) setShuf(!want); };
   window.overlay.on('playlists', (items) => {
     const box = $('lists'); box.innerHTML = '';
     if (!items.length) { box.innerHTML = '<div class="connect">No playlists found.</div>'; return; }
@@ -156,7 +228,7 @@
       if (p.liked) { img = document.createElement('div'); img.className = 'ph liked'; img.innerHTML = HEART; }
       else img = p.image ? Object.assign(document.createElement('img'), { src: p.image }) : Object.assign(document.createElement('div'), { className: 'ph' });
       const name = document.createElement('span'); name.textContent = p.name;
-      row.append(img, name); row.onclick = () => { window.overlay.playPlaylist(p.uri); armHide(); };
+      row.append(img, name); row.onclick = () => openList(p);
       box.appendChild(row);
     }
   });

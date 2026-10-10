@@ -86,13 +86,31 @@ function create(dataDir) {
       const r = await api('GET', '/me/player/currently-playing'); if (r.status !== 200 || !r.json || !r.json.item) return '';
       const imgs = (r.json.item.album && r.json.item.album.images) || []; return imgs.length ? imgs[Math.min(1, imgs.length - 1)].url : '';
     },
+    // One page (50) of a playlist's songs for the browse view. Playlists use the newer /items endpoint (/tracks is 403 now).
+    // pos is the song's place in the list (skipped rows included), which is what "play from here" needs.
+    async tracks(uri, offset) {
+      const liked = uri === LIKED;
+      const r = await api('GET', liked ? `/me/tracks?limit=50&offset=${offset}` : `/playlists/${uri.split(':')[2]}/items?limit=50&offset=${offset}`);
+      if (r.status !== 200 || !r.json) return { items: [], next: null, error: liked && r.status === 403 ? 'reconnect' : 'failed' };
+      const items = (r.json.items || []).map((x, i) => {
+        const t = x && (x.item || x.track); if (!t || !t.uri) return null;
+        return { pos: offset + i, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', ') };
+      }).filter(Boolean);
+      return { items, next: r.json.next ? offset + 50 : null, total: r.json.total };
+    },
     // Starting playback through the API needs Spotify Premium; otherwise the caller falls back to the spotify: link.
-    async playPlaylist(uri) {
+    async playPlaylist(uri, pos) {
       if (uri === LIKED) {   // Liked Songs is the user's "collection" context
         const me = await api('GET', '/me'); if (me.status !== 200) return false;
         uri = `spotify:user:${me.json.id}:collection`;
       }
-      const r = await api('PUT', '/me/player/play', { context_uri: uri }); return r.status === 204 || r.status === 202;
+      const body = { context_uri: uri }; if (Number.isInteger(pos)) body.offset = { position: pos };
+      const r = await api('PUT', '/me/player/play', body); return r.status === 204 || r.status === 202;
+    },
+    // Shuffle: read it (on = undefined) or set it; returns the state, or null when there is no active player.
+    async shuffle(on) {
+      if (typeof on === 'boolean') { const r = await api('PUT', '/me/player/shuffle?state=' + on); return r.status === 204 || r.status === 202 ? on : null; }
+      const r = await api('GET', '/me/player'); return r.status === 200 && r.json ? !!r.json.shuffle_state : null;
     },
     // Voice requests: find the best match and play it. type: track | artist | album | playlist | liked
     async searchAndPlay(type, query) {

@@ -85,7 +85,7 @@ function show() {
   write('meter on'); write('vol get');
   win.setAlwaysOnTop(true, 'screen-saver');
   win.webContents.send('show', { autoHide: cfg.autoHideSeconds, intensity: cfg.intensity, showPlaylists: cfg.showPlaylists, hotkey: cfg.hotkey, voice: cfg.claudeVoice });
-  if (spotify.connected) refreshPlaylists();
+  if (spotify.connected) { refreshPlaylists(); spotify.shuffle().then((s) => { if (win && s !== null) win.webContents.send('shuffle', s); }).catch(() => {}); }
 }
 function hide() {
   if (!win || !visible) return;
@@ -214,9 +214,18 @@ ipcMain.on('seek', (_e, s) => { if (Number.isFinite(s) && s >= 0) send('seek ' +
 ipcMain.on('volume', (_e, v) => { if (Number.isFinite(v)) { startHelper(); write('vol ' + Math.max(0, Math.min(1, v)).toFixed(3)); volume = v; } });
 ipcMain.on('hide', hide);
 ipcMain.on('settings', openSettings);
-ipcMain.handle('play-playlist', async (_e, uri) => {
-  if (!/^spotify:(playlist:[A-Za-z0-9]+|collection:tracks)$/.test(uri)) return false;
-  let ok = false; try { ok = await spotify.playPlaylist(uri); } catch (_) {}
+const LIST_URI = /^spotify:(playlist:[A-Za-z0-9]+|collection:tracks)$/;
+ipcMain.handle('tracks', async (_e, uri, offset) => {
+  if (!LIST_URI.test(uri) || !Number.isInteger(offset) || offset < 0) return { items: [], next: null, error: 'failed' };
+  try { return await spotify.tracks(uri, offset); } catch (_) { return { items: [], next: null, error: 'failed' }; }
+});
+ipcMain.handle('shuffle', async (_e, on) => {
+  let s = null; try { s = await spotify.shuffle(typeof on === 'boolean' ? on : undefined); } catch (_) {}
+  return s;
+});
+ipcMain.handle('play-playlist', async (_e, uri, pos) => {
+  if (!LIST_URI.test(uri)) return false;
+  let ok = false; try { ok = await spotify.playPlaylist(uri, Number.isInteger(pos) && pos >= 0 ? pos : undefined); } catch (_) {}
   if (!ok) { shell.openExternal(uri); setTimeout(() => send('play'), 2500); }   // no Premium / no device: open it in the Spotify app, then press play
   return true;
 });
