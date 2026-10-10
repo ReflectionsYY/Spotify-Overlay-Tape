@@ -98,6 +98,14 @@ function create(dataDir) {
       }).filter(Boolean);
       return { items, next: r.json.next ? offset + 50 : null, total: r.json.total };
     },
+    // Song search for the search box: 10 at a time (paged as the list scrolls), up to 200 results.
+    async search(query, offset) {
+      const r = await api('GET', '/search?' + new URLSearchParams({ q: query, type: 'track', limit: '10', offset: String(offset) }));
+      if (r.status !== 200 || !r.json || !r.json.tracks) return { items: [], next: null, error: 'failed' };
+      const items = (r.json.tracks.items || []).filter((t) => t && t.uri).map((t) => ({ uri: t.uri, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', ') }));
+      return { items, next: r.json.tracks.next && offset + 10 < 200 ? offset + 10 : null };
+    },
+    async playTrack(uri) { const r = await api('PUT', '/me/player/play', { uris: [uri] }); return r.status === 204 || r.status === 202; },
     // Starting playback through the API needs Spotify Premium; otherwise the caller falls back to the spotify: link.
     async playPlaylist(uri, pos) {
       if (uri === LIKED) {   // Liked Songs is the user's "collection" context

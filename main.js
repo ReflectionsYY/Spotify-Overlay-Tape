@@ -236,11 +236,22 @@ ipcMain.on('cmd', (_e, c) => { if (['toggle', 'next', 'prev', 'play', 'pause'].i
 ipcMain.on('seek', (_e, s) => { if (Number.isFinite(s) && s >= 0) send('seek ' + s.toFixed(2)); });
 ipcMain.on('volume', (_e, v) => { if (Number.isFinite(v)) { startHelper(); write('vol ' + Math.max(0, Math.min(1, v)).toFixed(3)); volume = v; } });
 ipcMain.on('hide', hide);
+ipcMain.on('focus', () => { if (win && visible) win.focus(); });   // only for typing in the search box
 ipcMain.on('settings', openSettings);
 const LIST_URI = /^spotify:(playlist:[A-Za-z0-9]+|collection:tracks)$/;
 ipcMain.handle('tracks', async (_e, uri, offset) => {
   if (!LIST_URI.test(uri) || !Number.isInteger(offset) || offset < 0) return { items: [], next: null, error: 'failed' };
   try { return await spotify.tracks(uri, offset); } catch (_) { return { items: [], next: null, error: 'failed' }; }
+});
+ipcMain.handle('search', async (_e, query, offset) => {
+  if (typeof query !== 'string' || !query.trim() || query.length > 200 || !Number.isInteger(offset) || offset < 0) return { items: [], next: null };
+  try { return await spotify.search(query.trim(), offset); } catch (_) { return { items: [], next: null, error: 'failed' }; }
+});
+ipcMain.handle('play-track', async (_e, uri) => {
+  if (!/^spotify:track:[A-Za-z0-9]+$/.test(uri)) return false;
+  let ok = false; try { ok = await spotify.playTrack(uri); } catch (_) {}
+  if (!ok) { shell.openExternal(uri); setTimeout(() => send('play'), 2500); }   // no Premium / no device: open it in the Spotify app
+  return true;
 });
 ipcMain.handle('shuffle', async (_e, on) => {
   let s = null; try { s = await spotify.shuffle(typeof on === 'boolean' ? on : undefined); } catch (_) {}

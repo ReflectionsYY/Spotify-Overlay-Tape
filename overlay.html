@@ -24,6 +24,12 @@
   .back { color: var(--dim); } .back:hover { color: var(--text); } .back svg { width: 18px; height: 18px; }
   .lplay { background: var(--green); color: #111; } .lplay:hover { background: #3be477; } .lplay svg { width: 13px; height: 13px; }
   [hidden] { display: none !important; }
+  .find { width: 24px; height: 24px; flex: none; color: var(--dim); } .find:hover { color: var(--text); } .find svg { width: 16px; height: 16px; }
+  .no-api .find, .searching .find, .searching .lplay, .searching .lists h3 { display: none; }
+  #q { display: none; flex: 1; min-width: 0; height: 26px; padding: 0 9px; border-radius: 13px; border: 1px solid var(--line); background: rgba(255,255,255,.07);
+    color: var(--text); font: inherit; font-size: 12.5px; outline: none; }
+  #q:focus { border-color: rgba(143,123,255,.6); }
+  .searching #q { display: block; }
   .tr { padding: 4px 6px; border-radius: 8px; cursor: pointer; }
   .tr:hover { background: rgba(255,255,255,.07); }
   .tr:active { transform: scale(.98); }
@@ -83,6 +89,8 @@
     <div class="head">
       <button class="back" id="back" title="Back to playlists"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4-4.6-4.6z"/></svg></button>
       <h3 id="listName">Playlists</h3>
+      <input id="q" type="search" placeholder="Search songs" spellcheck="false" autocomplete="off">
+      <button class="find" id="find" title="Search songs"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.8l-.3-.3A6.5 6.5 0 1 0 14 15.5l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg></button>
       <button class="lplay" id="lplay" title="Play this playlist"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
     </div>
     <div class="scroll" id="lists"><div class="connect" id="connectNote">Connect Spotify in Settings (gear button) to see your playlists here.</div></div>
@@ -159,7 +167,7 @@
     lastDraw = t; react.step(); globe.draw(t); drawWave();
   }
   requestAnimationFrame(() => { globe.fit(); fitWave(); });
-  function armHide() { clearTimeout(hideTimer); if (autoHide > 0 && !hovering) hideTimer = setTimeout(() => window.overlay.hide(), autoHide * 1000); }
+  function armHide() { clearTimeout(hideTimer); if (autoHide > 0 && !hovering && !document.body.classList.contains('searching'))hideTimer = setTimeout(() => window.overlay.hide(), autoHide * 1000); }
 
   // ---------------------------------------------------------------- data from the app
   window.overlay.on('state', (s) => {
@@ -175,35 +183,40 @@
     render();
   });
 
-  // ---------------------------------------------------------------- browsing a playlist (click one to open it, scroll its songs)
-  let view = null, lastTitle = null;   // view: { uri, name, next, loading }
-  function openList(p) {
-    view = { uri: p.uri, name: p.name, next: 0, loading: false };
-    document.body.classList.add('browsing');
-    $('listName').textContent = p.name; $('listName').title = p.name;
+  // ---------------------------------------------------------------- song lists: an open playlist, or search results
+  // view: { fetch(offset) -> {items, next, error}, play(song), uri?, next, loading, empty }
+  let view = null, lastTitle = null;
+  function showSongs(v) {
+    view = Object.assign({ next: 0, loading: false }, v);
     $('lists').hidden = true; const box = $('tracks'); box.innerHTML = ''; box.hidden = false; box.scrollTop = 0;
     loadMore();
   }
+  function openList(p) {
+    closeSearch(false);
+    document.body.classList.add('browsing');
+    $('listName').textContent = p.name; $('listName').title = p.name;
+    showSongs({ uri: p.uri, fetch: (o) => window.overlay.tracks(p.uri, o), play: (t) => window.overlay.playPlaylist(p.uri, t.pos), empty: "Couldn't load this playlist." });
+  }
   function closeList() {
-    view = null; document.body.classList.remove('browsing');
+    view = null; document.body.classList.remove('browsing', 'searching');
     $('listName').textContent = 'Playlists'; $('listName').title = '';
     $('tracks').hidden = true; $('tracks').innerHTML = ''; $('lists').hidden = false;
   }
   async function loadMore() {
     const v = view; if (!v || v.loading || v.next === null) return;
     v.loading = true;
-    const r = await window.overlay.tracks(v.uri, v.next);
-    if (view !== v) return;                   // went back / opened another list meanwhile
+    const r = await v.fetch(v.next);
+    if (view !== v) return;                   // went back / opened another list / typed a new search meanwhile
     v.loading = false; v.next = r.next;
     const box = $('tracks');
-    if (r.error && !box.children.length) {
-      box.innerHTML = `<div class="connect">${r.error === 'reconnect' ? 'Reconnect Spotify in Settings (gear button) once to browse Liked Songs.' : "Couldn't load this playlist."}</div>`;
+    if ((r.error || !r.items.length) && !box.children.length) {
+      box.innerHTML = `<div class="connect">${r.error === 'reconnect' ? 'Reconnect Spotify in Settings (gear button) once to browse Liked Songs.' : r.error ? v.empty : 'No songs found.'}</div>`;
       return;
     }
     for (const t of r.items) {
       const row = document.createElement('div'); row.className = 'tr'; row.title = t.name + ' - ' + t.artist; row.dataset.name = t.name;
       const b = document.createElement('b'), i = document.createElement('i'); b.textContent = t.name; i.textContent = t.artist;
-      row.append(b, i); row.onclick = () => { window.overlay.playPlaylist(v.uri, t.pos); armHide(); };
+      row.append(b, i); row.onclick = () => { v.play(t); armHide(); };
       box.appendChild(row);
     }
     markCurrent();
@@ -212,7 +225,28 @@
   function markCurrent() { for (const row of $('tracks').children) row.classList.toggle('cur', !!st && st.active && row.dataset.name === st.title); }
   $('tracks').addEventListener('scroll', (e) => { const b = e.currentTarget; if (b.scrollTop + b.clientHeight > b.scrollHeight - 120) loadMore(); });
   $('back').onclick = closeList;
-  $('lplay').onclick = () => { if (view) { window.overlay.playPlaylist(view.uri); armHide(); } };
+  $('lplay').onclick = () => { if (view && view.uri) { window.overlay.playPlaylist(view.uri); armHide(); } };
+
+  // ---------------------------------------------------------------- song search (the magnifier in the list header)
+  // Typing needs keyboard focus, so the overlay takes focus only while the search box is open.
+  let searchTimer = null;
+  function openSearch() {
+    closeList(); document.body.classList.add('browsing', 'searching');
+    $('lists').hidden = true; $('tracks').hidden = false;
+    $('tracks').innerHTML = '<div class="connect">Type a song or artist.</div>';
+    const q = $('q'); q.value = ''; window.overlay.focus(); q.focus();
+  }
+  function closeSearch(back) { clearTimeout(searchTimer); if (document.body.classList.contains('searching') && back !== false) closeList(); document.body.classList.remove('searching'); $('q').blur(); }
+  $('find').onclick = openSearch;
+  $('q').addEventListener('input', (e) => {
+    clearTimeout(searchTimer); const text = e.target.value.trim();
+    if (!text) { view = null; $('tracks').innerHTML = '<div class="connect">Type a song or artist.</div>'; return; }
+    searchTimer = setTimeout(() => showSongs({ fetch: (o) => window.overlay.search(text, o), play: (t) => window.overlay.playTrack(t.uri), empty: "Search isn't working right now." }), 350);
+  });
+  $('q').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.stopPropagation(); closeSearch(); }
+    if (e.key === 'Enter') { const first = $('tracks').querySelector('.tr'); if (first) first.click(); }
+  });
 
   // ---------------------------------------------------------------- shuffle (Spotify's own shuffle setting)
   let shuffleOn = false;
@@ -248,7 +282,7 @@
   $('play').onclick = () => { if (st) { st.playing = !st.playing; $('playIcon').innerHTML = st.playing ? PAUSE : PLAY; } window.overlay.cmd('toggle'); };
   $('gear').onclick = () => window.overlay.settings();
   $('bar').onclick = (e) => { if (!st || !st.duration) return; const r = e.currentTarget.getBoundingClientRect(); window.overlay.seek((e.clientX - r.left) / r.width * st.duration); };
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.overlay.hide(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && e.target !== $('q')) window.overlay.hide(); });
 
   // ---------------------------------------------------------------- volume (Spotify's own mixer level)
   let volDragging = false;
