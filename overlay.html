@@ -268,9 +268,9 @@
   });
   // open / close sounds (the user's own, cut from "sfx sportify.mp3"; volume from Settings, 0 = off)
   const SFX = { open: new Audio('sounds/open.wav'), close: new Audio('sounds/close.wav') };
-  let sfxVol = 0.6;
+  let sfxVol = 0.35;
   function sfx(name) { if (sfxVol <= 0) return; const a = SFX[name]; a.pause(); a.currentTime = 0; a.volume = sfxVol; a.play().catch(() => {}); }
-  window.overlay.on('show', (o) => { sfxVol = typeof o.sfxVolume === 'number' ? o.sfxVolume : 0.6; sfx('open'); });
+  window.overlay.on('show', (o) => { sfxVol = typeof o.sfxVolume === 'number' ? o.sfxVolume : 0.35; sfx('open'); });
   window.overlay.on('hide', () => sfx('close'));
 
   window.overlay.on('show', (o) => {
