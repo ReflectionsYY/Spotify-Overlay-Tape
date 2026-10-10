@@ -53,9 +53,7 @@
   .mic.busy { color: #8fd3ff; }
   .no-voice .mic { display: none; }
   @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(143,123,255,.18); } }
-  .status { position: absolute; left: 228px; right: 190px; bottom: 6px; font-size: 11.5px; color: #c9bfff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity 150ms; }
-  .status.on { opacity: 1; }
-  .no-lists .status { left: 18px; }
+  .artist.voice { color: #c9bfff; }
   .viz { width: 176px; flex: none; display: grid; place-items: center; border-left: 1px solid var(--line); }
   #globe { width: 166px; height: 166px; display: block; }
 </style>
@@ -86,7 +84,6 @@
     </div>
   </div>
   <div class="viz"><canvas id="globe"></canvas></div>
-  <div class="status" id="status"></div>
 </div>
 <script src="globe.js"></script>
 <script>
@@ -97,7 +94,7 @@
   let st = null, stAt = 0, hideTimer = null, autoHide = 8, hovering = false, raf = 0, lastDraw = 0;
 
   function render() {
-    if (!st || !st.active) { $('title').textContent = 'Nothing playing'; $('artist').textContent = 'Open Spotify and press play'; $('fill').style.width = '0'; $('pos').textContent = '0:00'; $('left').textContent = '-0:00'; return; }
+    if (!st || !st.active) { $('title').textContent = 'Nothing playing'; if (!voiceText) $('artist').textContent = 'Open Spotify and press play'; $('fill').style.width = '0'; $('pos').textContent = '0:00'; $('left').textContent = '-0:00'; return; }
     const pos = Math.min(st.duration, st.position + (st.playing ? (performance.now() - stAt) / 1000 : 0));
     $('fill').style.width = (st.duration ? pos / st.duration * 100 : 0) + '%';
     $('pos').textContent = fmt(pos); $('left').textContent = '-' + fmt(st.duration - pos);
@@ -143,7 +140,7 @@
   window.overlay.on('state', (s) => {
     st = s; stAt = performance.now();
     if (s.active) {
-      $('title').textContent = s.title || 'Unknown'; $('artist').textContent = s.artist || '';
+      $('title').textContent = s.title || 'Unknown'; if (!voiceText) $('artist').textContent = s.artist || '';
       $('playIcon').innerHTML = s.playing ? PAUSE : PLAY;
       $('art').style.backgroundImage = s.art ? `url("${s.art}")` : 'none';
     }
@@ -189,10 +186,11 @@
 
   // ---------------------------------------------------------------- "Hey Claude" voice button
   // Click: records up to 6 s (click again to stop early). Audio stays on this PC; only the words go to Claude.
-  let rec = null, chunks = [], statusTimer = null;
+  let rec = null, chunks = [], statusTimer = null; var voiceText = null;
+  // Voice progress shows in place of the artist line (nothing else moves); the artist comes back afterwards.
   function status(text, sticky) {
-    const el = $('status'); el.textContent = text; el.classList.add('on'); clearTimeout(statusTimer);
-    if (!sticky) statusTimer = setTimeout(() => el.classList.remove('on'), 5000);
+    voiceText = text; const el = $('artist'); el.textContent = text; el.title = text; el.classList.add('voice'); clearTimeout(statusTimer);
+    if (!sticky) statusTimer = setTimeout(() => { voiceText = null; el.classList.remove('voice'); el.title = ''; el.textContent = st && st.active ? (st.artist || '') : 'Open Spotify and press play'; }, 5000);
   }
   window.overlay.on('voice-status', (s) => { const done = /^(Playing|Couldn|Didn|Connect|Voice error)/.test(s); status(s, !done); if (done) $('mic').classList.remove('busy'); });
   $('mic').onclick = async () => {

@@ -4,18 +4,30 @@
 // earlier (so energy rolls pole to pole like an equalizer), beats kick the spin, flash the nodes and launch ripples.
 window.MusicReact = function MusicReact() {
   const history = new Float32Array(120);
-  const s = { level: 0, slow: 0, avg: 0.1, beat: 0, hue: 195, rot: 0, phase: 0, energy: 0, intensity: 1, history, ripples: [] };
+  const s = { level: 0, slow: 0, avg: 0.1, beat: 0, hue: 195, rot: 0, phase: 0, energy: 0, intensity: 1, history, ripples: [],
+    shift: 0, shiftTarget: 0, beats: 0, lastSwap: 0 };
+  // Palette offsets added to the blue->purple swing: base, teal/cyan, magenta/pink, deep violet/indigo
+  const PALETTES = [0, -35, 95, 55, -60];
   s.feed = (m) => {
     const p = Math.max(m[0], m[1]);
     s.avg += (p - s.avg) * 0.02;                                 // long-run loudness, for an adaptive beat threshold
-    if (p > s.avg * 1.35 + 0.04 && p - s.level > 0.05 && s.beat < 0.5) { s.beat = 1; s.ripples.push({ r: 0, a: 1 }); }
+    if (p > s.avg * 1.35 + 0.04 && p - s.level > 0.05 && s.beat < 0.5) {
+      s.beat = 1; s.ripples.push({ r: 0, a: 1 }); s.beats++;
+      // now and then a strong beat swaps the palette: after 24+ beats and at least 15 s on the current one
+      const now = performance.now();
+      if (s.beats >= 24 && now - s.lastSwap > 15000 && p > s.avg * 1.7) {
+        let next; do { next = PALETTES[Math.floor(Math.random() * PALETTES.length)]; } while (next === s.shiftTarget);
+        s.shiftTarget = next; s.beats = 0; s.lastSwap = now;
+      }
+    }
     s.level = p; history.copyWithin(0, 1); history[history.length - 1] = p;
   };
   s.step = () => {
     const k = s.intensity;
     s.slow += (s.level - s.slow) * 0.12; s.beat *= 0.84;
     s.energy = Math.min(1, s.slow * 1.8 * k);
-    const target = 195 + 85 * s.energy + s.beat * 22 * k;      // light blue (195) -> purple (280), beats push further
+    s.shift += (s.shiftTarget - s.shift) * 0.02;                  // palette swaps fade in over ~2 seconds
+    const target = 195 + 85 * s.energy + s.beat * 22 * k + s.shift;  // light blue (195) -> purple (280), beats push further
     s.hue += (target - s.hue) * 0.08;
     s.rot += 0.005 + s.energy * 0.03 + s.beat * 0.05 * k;
     s.phase += 0.08 + s.slow * 0.7;
