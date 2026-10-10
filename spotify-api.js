@@ -2,16 +2,19 @@
 // login in the browser, tokens kept encrypted with Electron safeStorage. Only reads playlists / now-playing and
 // starts a playlist; nothing is posted or changed on the account.
 const http = require('http'), crypto = require('crypto'), fs = require('fs'), path = require('path');
-const { shell, safeStorage } = require('electron');
+const { app, shell, safeStorage } = require('electron');
 
 const REDIRECT_PORT = 8888, REDIRECT = `http://127.0.0.1:${REDIRECT_PORT}/callback`;
 const SCOPES = 'playlist-read-private playlist-read-collaborative user-read-currently-playing user-read-playback-state user-modify-playback-state';
 
 function create(dataDir) {
   const tokenFile = path.join(dataDir, 'spotify-token.bin');
-  let token = null;   // { access, refresh, expires, clientId }
+  let token = null, loaded = false;   // token: { access, refresh, expires, clientId }
 
+  // safeStorage only works once the app is ready, so the saved login is read lazily (not at startup)
   function load() {
+    if (loaded || !app.isReady()) return;
+    loaded = true;
     try { token = JSON.parse(safeStorage.decryptString(fs.readFileSync(tokenFile))); } catch (e) { token = null; }
   }
   function save() { fs.writeFileSync(tokenFile, safeStorage.encryptString(JSON.stringify(token))); }
@@ -47,6 +50,7 @@ function create(dataDir) {
   }
 
   async function access() {
+    load();
     if (!token) return null;
     if (Date.now() < token.expires) return token.access;
     const r = await fetch('https://accounts.spotify.com/api/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -65,7 +69,7 @@ function create(dataDir) {
   }
 
   return {
-    get connected() { return !!token; },
+    get connected() { load(); return !!token; },
     login,
     logout() { token = null; try { fs.unlinkSync(tokenFile); } catch (_) {} },
     async playlists() {

@@ -149,6 +149,6 @@ app.whenReady().then(() => {
   if (!registerHotkey(cfg.hotkey)) console.error('hotkey taken: ' + cfg.hotkey);
   if (!cfg.clientId && !spotify.connected) openSetup();
 });
-app.on('second-instance', show);
+app.on('second-instance', (_e, argv) => { if (argv.includes('--setup')) openSetup(); else show(); });
 app.on('window-all-closed', (e) => e.preventDefault?.());
 app.on('will-quit', () => { globalShortcut.unregisterAll(); stopHelper(); });
