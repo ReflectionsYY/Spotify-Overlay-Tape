@@ -241,7 +241,7 @@
   $('q').addEventListener('input', (e) => {
     clearTimeout(searchTimer); const text = e.target.value.trim();
     if (!text) { view = null; $('tracks').innerHTML = '<div class="connect">Type a song or artist.</div>'; return; }
-    searchTimer = setTimeout(() => showSongs({ fetch: (o) => window.overlay.search(text, o), play: (t) => window.overlay.playTrack(t.uri), empty: "Search isn't working right now." }), 350);
+    searchTimer = setTimeout(() => showSongs({ fetch: (o) => window.overlay.search(text, o), play: (t) => window.overlay.playTrack(t.uri, t.album).then((ok) => { if (!ok) status("Couldn't start that song - is Spotify open?"); }), empty: "Search isn't working right now." }), 350);
   });
   $('q').addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { e.stopPropagation(); closeSearch(); }

@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('overlay', {
   playPlaylist: (uri, pos) => ipcRenderer.invoke('play-playlist', uri, pos),
   tracks: (uri, offset) => ipcRenderer.invoke('tracks', uri, offset),
   search: (query, offset) => ipcRenderer.invoke('search', query, offset),
-  playTrack: (uri) => ipcRenderer.invoke('play-track', uri),
+  playTrack: (uri, album) => ipcRenderer.invoke('play-track', uri, album),
   shuffle: (on) => ipcRenderer.invoke('shuffle', on),
   voice: (bytes) => ipcRenderer.invoke('voice', bytes),
   on: (ch, fn) => { if (['state', 'show', 'hide', 'playlists', 'meter', 'volume', 'voice-status', 'corner', 'shuffle'].includes(ch)) ipcRenderer.on(ch, (_e, d) => fn(d)); },

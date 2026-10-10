@@ -247,11 +247,12 @@ ipcMain.handle('search', async (_e, query, offset) => {
   if (typeof query !== 'string' || !query.trim() || query.length > 200 || !Number.isInteger(offset) || offset < 0) return { items: [], next: null };
   try { return await spotify.search(query.trim(), offset); } catch (_) { return { items: [], next: null, error: 'failed' }; }
 });
-ipcMain.handle('play-track', async (_e, uri) => {
+ipcMain.handle('play-track', async (_e, uri, album) => {
   if (!/^spotify:track:[A-Za-z0-9]+$/.test(uri)) return false;
-  let ok = false; try { ok = await spotify.playTrack(uri); } catch (_) {}
-  if (!ok) { shell.openExternal(uri); setTimeout(() => send('play'), 2500); }   // no Premium / no device: open it in the Spotify app
-  return true;
+  if (!/^spotify:album:[A-Za-z0-9]+$/.test(album || '')) album = undefined;
+  let ok = false; try { ok = await spotify.playTrack(uri, album); } catch (_) {}
+  setTimeout(() => write('state'), 300);
+  return ok;
 });
 ipcMain.handle('shuffle', async (_e, on) => {
   let s = null; try { s = await spotify.shuffle(typeof on === 'boolean' ? on : undefined); } catch (_) {}

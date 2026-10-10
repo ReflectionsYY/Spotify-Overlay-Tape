@@ -102,10 +102,28 @@ function create(dataDir) {
     async search(query, offset) {
       const r = await api('GET', '/search?' + new URLSearchParams({ q: query, type: 'track', limit: '10', offset: String(offset) }));
       if (r.status !== 200 || !r.json || !r.json.tracks) return { items: [], next: null, error: 'failed' };
-      const items = (r.json.tracks.items || []).filter((t) => t && t.uri).map((t) => ({ uri: t.uri, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', ') }));
+      const items = (r.json.tracks.items || []).filter((t) => t && t.uri).map((t) => ({ uri: t.uri, album: t.album && t.album.uri, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', ') }));
       return { items, next: r.json.tracks.next && offset + 10 < 200 ? offset + 10 : null };
     },
-    async playTrack(uri) { const r = await api('PUT', '/me/player/play', { uris: [uri] }); return r.status === 204 || r.status === 202; },
+    // One song: played inside its album (like clicking a search result in Spotify), because a bare { uris: [song] }
+    // request is accepted but often never starts on the desktop app. Then confirm it really started; if not, retry
+    // once as a bare song before giving up.
+    async playTrack(uri, albumUri) {
+      const started = async () => {
+        for (let i = 0; i < 5; i++) {
+          await new Promise((r) => setTimeout(r, 700));
+          const p = await api('GET', '/me/player'); const it = p.json && p.json.item;
+          if (it && p.json.is_playing && (it.uri === uri || (it.linked_from && it.linked_from.uri === uri))) return true;
+        }
+        return false;
+      };
+      const attempts = albumUri ? [{ context_uri: albumUri, offset: { uri } }, { uris: [uri] }] : [{ uris: [uri] }];
+      for (const body of attempts) {
+        const r = await api('PUT', '/me/player/play', body);
+        if ((r.status === 204 || r.status === 202) && await started()) return true;
+      }
+      return false;
+    },
     // Starting playback through the API needs Spotify Premium; otherwise the caller falls back to the spotify: link.
     async playPlaylist(uri, pos) {
       if (uri === LIKED) {   // Liked Songs is the user's "collection" context
@@ -128,8 +146,8 @@ function create(dataDir) {
       const items = (r.json && r.json[t + 's'] && r.json[t + 's'].items || []).filter(Boolean);
       if (!items.length) return { ok: false, error: `couldn't find "${query}"` };
       const hit = items[0], label = hit.name + (hit.artists ? ' - ' + hit.artists.map((a) => a.name).join(', ') : '');
-      const body = t === 'track' ? { uris: [hit.uri] } : { context_uri: hit.uri };
-      const p = await api('PUT', '/me/player/play', body);
+      if (t === 'track') return { ok: await this.playTrack(hit.uri, hit.album && hit.album.uri), name: label, uri: hit.uri };
+      const p = await api('PUT', '/me/player/play', { context_uri: hit.uri });
       return { ok: p.status === 204 || p.status === 202, name: label, uri: hit.uri };
     },
     async setVolume(pct) { const r = await api('PUT', '/me/player/volume?volume_percent=' + Math.round(pct)); return r.status === 204; },
