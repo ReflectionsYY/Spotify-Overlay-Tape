@@ -21,6 +21,13 @@
   window.overlay.on('corner', (o) => {
     react.intensity = o.intensity || 1; document.body.style.opacity = o.opacity;
     onlyWhilePlaying = o.onlyWhilePlaying; globe.fit();
+    if (o.layout) {
+      globe.layout(o.layout);
+      // fade toward the screen's middle so anything reaching the window's inner edges dissolves instead of cutting off
+      const c = document.getElementById('globe').style;
+      c.maskImage = `linear-gradient(to ${o.layout.right ? 'left' : 'right'}, #000 68%, transparent), linear-gradient(to ${o.layout.bottom ? 'top' : 'bottom'}, #000 68%, transparent)`;
+      c.maskComposite = 'intersect';
+    }
   });
   window.overlay.on('state', (s) => { playing = !!(s.active && s.playing); document.body.classList.toggle('paused', onlyWhilePlaying && !playing); });
   function loop(t) { raf = requestAnimationFrame(loop); if (t - last < 32) return; last = t; react.step(); globe.draw(t); }

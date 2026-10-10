@@ -53,7 +53,7 @@
     <div class="row"><div>Auto-hide<div class="hint">Seconds after your mouse leaves it. 0 = stays until you press the key.</div></div><input type="range" id="autoHide" min="0" max="30" step="1"><span id="autoHideV" style="width:32px;text-align:right"></span></div>
     <div class="row"><div>Show playlists panel</div><label class="switch"><input type="checkbox" id="showPlaylists"><span></span></label></div>
     <div class="row"><div>"Hey Claude" voice button<div class="hint">Mic button on the overlay. Uses your Claude subscription (Haiku, a few hundred tokens) only when you press it.</div></div><label class="switch"><input type="checkbox" id="claudeVoice"><span></span></label></div>
-    <div class="row"><div>Start with Windows</div><label class="switch"><input type="checkbox" id="startWithWindows"><span></span></label></div>
+    <div class="row"><div>Open and close with Spotify<div class="hint">The overlay starts when Spotify opens and quits when Spotify closes, so it uses nothing while Spotify is off. A tiny low-priority checker (about 15 MB, no noticeable CPU) runs from login to do this.</div></div><label class="switch"><input type="checkbox" id="withSpotify"><span></span></label></div>
   </div>
 
   <h2>Visuals</h2>
@@ -79,7 +79,7 @@
     $('redir').textContent = c.redirect; if (!$('cid').value) $('cid').value = c.clientId || '';
     $('hotkey').value = c.hotkey; $('position').value = c.position;
     $('autoHide').value = c.autoHideSeconds; $('autoHideV').textContent = c.autoHideSeconds + 's';
-    $('showPlaylists').checked = c.showPlaylists; $('claudeVoice').checked = c.claudeVoice; $('startWithWindows').checked = c.startWithWindows;
+    $('showPlaylists').checked = c.showPlaylists; $('claudeVoice').checked = c.claudeVoice; $('withSpotify').checked = c.withSpotify;
     $('intensity').value = c.intensity; $('intensityV').textContent = (+c.intensity).toFixed(1) + 'x';
     $('cEnabled').checked = c.corner.enabled; $('cCorner').value = c.corner.corner; $('cSize').value = c.corner.size; $('cSizeV').textContent = c.corner.size + 'px';
     $('cOpacity').value = c.corner.opacity; $('cOpacityV').textContent = Math.round(c.corner.opacity * 100) + '%'; $('cOnly').checked = c.corner.onlyWhilePlaying;
@@ -110,7 +110,7 @@
   $('autoHide').oninput = (e) => { $('autoHideV').textContent = e.target.value + 's'; }; $('autoHide').onchange = (e) => set({ autoHideSeconds: +e.target.value });
   $('showPlaylists').onchange = (e) => set({ showPlaylists: e.target.checked });
   $('claudeVoice').onchange = (e) => set({ claudeVoice: e.target.checked });
-  $('startWithWindows').onchange = (e) => set({ startWithWindows: e.target.checked });
+  $('withSpotify').onchange = (e) => set({ withSpotify: e.target.checked });
   $('intensity').oninput = (e) => { $('intensityV').textContent = (+e.target.value).toFixed(1) + 'x'; }; $('intensity').onchange = (e) => set({ intensity: +e.target.value });
   $('cEnabled').onchange = (e) => set({ corner: { enabled: e.target.checked } });
   $('cCorner').onchange = (e) => set({ corner: { corner: e.target.value } });

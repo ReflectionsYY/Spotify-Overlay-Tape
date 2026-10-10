@@ -42,10 +42,13 @@ window.GridGlobe = function GridGlobe(canvas, react) {
   const DPR = Math.min(2, window.devicePixelRatio || 1);
   const rain = Array.from({ length: 16 }, () => ({ lon: Math.floor(Math.random() * 18) * 20, lat: 90 - Math.random() * 180, speed: 0.6 + Math.random() * 1.4 }));
   function fit() { const r = canvas.getBoundingClientRect(); canvas.width = Math.max(1, Math.round(r.width * DPR)); canvas.height = Math.max(1, Math.round(r.height * DPR)); }
+  // where the globe sits in the canvas (fractions of the canvas); the corner widget moves it off-centre to leave room
+  let lay = { cx: 0.5, cy: 0.5, base: 0.36 };
+  function layout(l) { if (l) lay = { cx: l.cx, cy: l.cy, base: l.base }; }
 
   function draw(t) {
-    const s = react, k = s.intensity, W = canvas.width, H = canvas.height, cx = W / 2, cy = H / 2;
-    const base = Math.min(W, H) * 0.36, R = base * (1 + 0.1 * s.energy + 0.12 * s.beat * k), tilt = 0.38;
+    const s = react, k = s.intensity, W = canvas.width, H = canvas.height, cx = W * lay.cx, cy = H * lay.cy;
+    const base = Math.min(W, H) * lay.base, R = base * (1 + 0.1 * s.energy + 0.12 * s.beat * k), tilt = 0.38;
     const hist = s.history, n = hist.length, light = 62 + s.beat * 16;
     g.clearRect(0, 0, W, H);
     g.globalCompositeOperation = 'lighter';
@@ -93,5 +96,5 @@ window.GridGlobe = function GridGlobe(canvas, react) {
     g.globalCompositeOperation = 'source-over';
   }
   fit();
-  return { draw, fit };
+  return { draw, fit, layout };
 };

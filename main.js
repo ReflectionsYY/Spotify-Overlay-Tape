@@ -6,6 +6,7 @@ const { spawn, execFile } = require('child_process');
 const fs = require('fs'), path = require('path'), os = require('os');
 
 if (!app.requestSingleInstanceLock()) { app.quit(); return; }
+if (process.argv.includes('quit-now')) { app.quit(); return; }   // the watcher saying Spotify closed, with no overlay to close
 app.setAppUserModelId('com.collin.spotifyoverlay');
 
 const DATA = app.getPath('userData'), CFG_FILE = path.join(DATA, 'settings.json');
@@ -112,9 +113,13 @@ function applyCorner() {
     if (!visible) { write('meter off'); stopTimer = setTimeout(stopHelper, 60000); }
     return;
   }
-  const d = screen.getPrimaryDisplay().bounds, size = Math.max(100, Math.min(320, c.size | 0)), m = 12;
-  const x = c.corner.endsWith('left') ? d.x + m : d.x + d.width - size - m;
-  const y = c.corner.startsWith('bottom') ? d.y + d.height - size - m : d.y + m;
+  // The window sits flush in the screen corner and reaches well past the globe toward the middle of the screen, so the
+  // ripples and bulges have room to finish (fading out softly) instead of being cut off by a square.
+  const d = screen.getPrimaryDisplay().bounds, globeSize = Math.max(100, Math.min(320, c.size | 0)), m = 12;
+  const size = Math.round(m + globeSize * 1.7), right = !c.corner.endsWith('left'), bottom = c.corner.startsWith('bottom');
+  const x = right ? d.x + d.width - size : d.x, y = bottom ? d.y + d.height - size : d.y;
+  const mid = m + globeSize / 2;
+  cornerLayout = { cx: (right ? size - mid : mid) / size, cy: (bottom ? size - mid : mid) / size, base: 0.36 * globeSize / size, right, bottom };
   if (!cornerWin) {
     cornerWin = new BrowserWindow({ width: size, height: size, x, y, frame: false, transparent: true, resizable: false, movable: false, skipTaskbar: true,
       alwaysOnTop: true, focusable: false, hasShadow: false, show: false, fullscreenable: false,
@@ -127,7 +132,25 @@ function applyCorner() {
   clearTimeout(stopTimer); startHelper(); write('meter on');
   clearInterval(cornerPoll); cornerPoll = setInterval(() => write('state'), 2000);
 }
-function sendCorner() { if (cornerWin) cornerWin.webContents.send('corner', { intensity: cfg.intensity, opacity: cfg.corner.opacity, onlyWhilePlaying: cfg.corner.onlyWhilePlaying }); }
+let cornerLayout = null;
+function sendCorner() { if (cornerWin) cornerWin.webContents.send('corner', { intensity: cfg.intensity, opacity: cfg.corner.opacity, onlyWhilePlaying: cfg.corner.onlyWhilePlaying, layout: cornerLayout }); }
+
+// ---------------------------------------------------------------- "Open with Spotify": a tiny watcher started at login
+// opens the overlay when Spotify starts and closes it when Spotify exits (watcher/SpotifyOverlayWatcher.cs)
+const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', RUN_NAME = 'Spotify Overlay (with Spotify)';
+const WATCHER = path.join(DATA, 'SpotifyOverlayWatcher.exe');
+const overlayCommand = () => process.env.PORTABLE_EXECUTABLE_FILE ? [process.env.PORTABLE_EXECUTABLE_FILE] : app.isPackaged ? [process.execPath] : [process.execPath, app.getAppPath()];
+function withSpotifyEnabled() { try { require('child_process').execFileSync('reg', ['query', RUN_KEY, '/v', RUN_NAME], { windowsHide: true, stdio: 'ignore' }); return true; } catch (_) { return false; } }
+function setWithSpotify(on) {
+  app.setLoginItemSettings({ openAtLogin: false });     // the old "start with Windows" entry is replaced by the watcher
+  execFile('taskkill', ['/IM', 'SpotifyOverlayWatcher.exe', '/F'], { windowsHide: true }, () => setTimeout(() => {
+    if (!on) { execFile('reg', ['delete', RUN_KEY, '/v', RUN_NAME, '/f'], { windowsHide: true }, () => {}); return; }
+    try { fs.copyFileSync(path.join(__dirname, 'watcher', 'SpotifyOverlayWatcher.exe'), WATCHER); } catch (_) { return; }
+    const argv = overlayCommand();
+    execFile('reg', ['add', RUN_KEY, '/v', RUN_NAME, '/t', 'REG_SZ', '/d', [WATCHER, ...argv].map((a) => `"${a}"`).join(' '), '/f'], { windowsHide: true }, () => {});
+    spawn(WATCHER, argv, { detached: true, stdio: 'ignore', windowsHide: true }).unref();   // start watching now, not just from next login
+  }, 600));
+}
 
 // ---------------------------------------------------------------- voice: mic clip -> offline Whisper -> Claude Haiku -> Spotify
 const FFMPEG = [path.join(os.homedir(), 'AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1.1-full_build/bin/ffmpeg.exe'), 'ffmpeg'].find((p) => p === 'ffmpeg' || fs.existsSync(p));
@@ -229,7 +252,7 @@ ipcMain.handle('play-playlist', async (_e, uri, pos) => {
   if (!ok) { shell.openExternal(uri); setTimeout(() => send('play'), 2500); }   // no Premium / no device: open it in the Spotify app, then press play
   return true;
 });
-ipcMain.handle('settings-get', () => Object.assign({}, cfg, { connected: spotify.connected, redirect: spotify.REDIRECT, startWithWindows: app.getLoginItemSettings().openAtLogin }));
+ipcMain.handle('settings-get', () => Object.assign({}, cfg, { connected: spotify.connected, redirect: spotify.REDIRECT, withSpotify: withSpotifyEnabled() }));
 ipcMain.handle('settings-set', (_e, patch) => {
   const p = patch || {};
   if ('hotkey' in p) { if (!registerHotkey(String(p.hotkey))) { registerHotkey(cfg.hotkey); return { ok: false, error: 'That key is taken or not valid.' }; } cfg.hotkey = String(p.hotkey); }
@@ -238,7 +261,7 @@ ipcMain.handle('settings-set', (_e, patch) => {
   if ('showPlaylists' in p) cfg.showPlaylists = !!p.showPlaylists;
   if ('claudeVoice' in p) cfg.claudeVoice = !!p.claudeVoice;
   if ('intensity' in p) cfg.intensity = Math.max(0.4, Math.min(2, +p.intensity || 1));
-  if ('startWithWindows' in p) app.setLoginItemSettings({ openAtLogin: !!p.startWithWindows });
+  if ('withSpotify' in p) setWithSpotify(!!p.withSpotify);
   if (p.corner) {
     const c = p.corner, cur = cfg.corner;
     if ('enabled' in c) cur.enabled = !!c.enabled;
@@ -268,6 +291,11 @@ app.whenReady().then(() => {
   const wantsSettings = process.argv.some((a) => a.toLowerCase().endsWith('setup'));
   if (wantsSettings || (!cfg.clientId && !spotify.connected)) openSettings();
 });
-app.on('second-instance', (_e, argv) => { if (argv.some((a) => a.toLowerCase().endsWith('setup'))) openSettings(); else show(); });
+app.on('second-instance', (_e, argv) => {
+  if (argv.includes('quit-now')) app.quit();              // Spotify closed (from the watcher)
+  else if (argv.includes('background')) {}                // Spotify opened and the overlay is already running
+  else if (argv.some((a) => a.toLowerCase().endsWith('setup'))) openSettings();
+  else show();
+});
 app.on('window-all-closed', () => {});   // keep running in the tray
 app.on('will-quit', () => { globalShortcut.unregisterAll(); if (helper) { write('quit'); } });

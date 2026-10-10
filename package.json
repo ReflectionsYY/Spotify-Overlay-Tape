@@ -26,7 +26,8 @@
                                 "corner.html",
                                 "settings.html",
                                 "media-helper.ps1",
-                                "icon.png"
+                                "icon.png",
+                                "watcher/SpotifyOverlayWatcher.exe"
                             ],
                   "extraResources":  [
                                          {
