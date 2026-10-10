@@ -5,7 +5,8 @@ const http = require('http'), crypto = require('crypto'), fs = require('fs'), pa
 const { app, shell, safeStorage } = require('electron');
 
 const REDIRECT_PORT = 8888, REDIRECT = `http://127.0.0.1:${REDIRECT_PORT}/callback`;
-const SCOPES = 'playlist-read-private playlist-read-collaborative user-read-currently-playing user-read-playback-state user-modify-playback-state';
+const LIKED = 'spotify:collection:tracks';
+const SCOPES = 'user-library-read playlist-read-private playlist-read-collaborative user-read-currently-playing user-read-playback-state user-modify-playback-state';
 
 function create(dataDir) {
   const tokenFile = path.join(dataDir, 'spotify-token.bin');
@@ -73,7 +74,7 @@ function create(dataDir) {
     login,
     logout() { token = null; try { fs.unlinkSync(tokenFile); } catch (_) {} },
     async playlists() {
-      const out = []; let url = '/me/playlists?limit=50';
+      const out = [{ id: 'liked', uri: LIKED, name: 'Liked Songs', liked: true }]; let url = '/me/playlists?limit=50';
       for (let page = 0; url && page < 4; page++) {
         const r = await api('GET', url); if (r.status !== 200) break;
         for (const p of r.json.items || []) if (p) out.push({ id: p.id, uri: p.uri, name: p.name, image: (p.images && p.images.length ? p.images[p.images.length - 1].url : '') });
@@ -85,8 +86,27 @@ function create(dataDir) {
       const r = await api('GET', '/me/player/currently-playing'); if (r.status !== 200 || !r.json || !r.json.item) return '';
       const imgs = (r.json.item.album && r.json.item.album.images) || []; return imgs.length ? imgs[Math.min(1, imgs.length - 1)].url : '';
     },
-    // Starting a playlist through the API needs Spotify Premium; otherwise the caller falls back to the spotify: link.
-    async playPlaylist(uri) { const r = await api('PUT', '/me/player/play', { context_uri: uri }); return r.status === 204 || r.status === 202; },
+    // Starting playback through the API needs Spotify Premium; otherwise the caller falls back to the spotify: link.
+    async playPlaylist(uri) {
+      if (uri === LIKED) {   // Liked Songs is the user's "collection" context
+        const me = await api('GET', '/me'); if (me.status !== 200) return false;
+        uri = `spotify:user:${me.json.id}:collection`;
+      }
+      const r = await api('PUT', '/me/player/play', { context_uri: uri }); return r.status === 204 || r.status === 202;
+    },
+    // Voice requests: find the best match and play it. type: track | artist | album | playlist | liked
+    async searchAndPlay(type, query) {
+      if (type === 'liked') return (await this.playPlaylist(LIKED)) ? { ok: true, name: 'Liked Songs' } : { ok: false };
+      const t = ['track', 'artist', 'album', 'playlist'].includes(type) ? type : 'track';
+      const r = await api('GET', '/search?' + new URLSearchParams({ q: query, type: t, limit: '5' }));
+      const items = (r.json && r.json[t + 's'] && r.json[t + 's'].items || []).filter(Boolean);
+      if (!items.length) return { ok: false, error: `couldn't find "${query}"` };
+      const hit = items[0], label = hit.name + (hit.artists ? ' - ' + hit.artists.map((a) => a.name).join(', ') : '');
+      const body = t === 'track' ? { uris: [hit.uri] } : { context_uri: hit.uri };
+      const p = await api('PUT', '/me/player/play', body);
+      return { ok: p.status === 204 || p.status === 202, name: label, uri: hit.uri };
+    },
+    async setVolume(pct) { const r = await api('PUT', '/me/player/volume?volume_percent=' + Math.round(pct)); return r.status === 204; },
     REDIRECT,
   };
 }

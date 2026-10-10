@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>Spotify Overlay - Corner Globe</title>
+<style>
+  html, body { margin: 0; background: transparent; overflow: hidden; height: 100%; }
+  #globe { width: 100%; height: 100%; display: block; transition: opacity 400ms ease-out; }
+  .paused #globe { opacity: 0; transition: opacity 600ms ease-in; }
+</style>
+</head>
+<body>
+<canvas id="globe"></canvas>
+<script src="globe.js"></script>
+<script>
+  // Click-through corner widget: just the globe, reacting to Spotify. Draws only while the window is shown.
+  const react = window.MusicReact(), globe = window.GridGlobe(document.getElementById('globe'), react);
+  let raf = 0, last = 0, onlyWhilePlaying = true, playing = true;
+  window.overlay.on('meter', (m) => react.feed(m));
+  window.overlay.on('corner', (o) => {
+    react.intensity = o.intensity || 1; document.body.style.opacity = o.opacity;
+    onlyWhilePlaying = o.onlyWhilePlaying; globe.fit();
+  });
+  window.overlay.on('state', (s) => { playing = !!(s.active && s.playing); document.body.classList.toggle('paused', onlyWhilePlaying && !playing); });
+  function loop(t) { raf = requestAnimationFrame(loop); if (t - last < 32) return; last = t; react.step(); globe.draw(t); }
+  window.overlay.on('show', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); });
+  window.overlay.on('hide', () => cancelAnimationFrame(raf));
+</script>
+</body>
+</html>

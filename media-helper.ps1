@@ -33,8 +33,35 @@ namespace SpotMeter {
   interface IAudioMeterInformation { [PreserveSig] int GetPeakValue(out float p); [PreserveSig] int GetMeteringChannelCount(out int n);
     [PreserveSig] int GetChannelsPeakValues(int n, [Out, MarshalAs(UnmanagedType.LPArray)] float[] peaks); }
 
+  [Guid("87CE5498-68D6-44E5-9215-6DA47EF883D8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface ISimpleAudioVolume { [PreserveSig] int SetMasterVolume(float v, ref Guid ctx); [PreserveSig] int GetMasterVolume(out float v);
+    [PreserveSig] int SetMute(bool m, ref Guid ctx); [PreserveSig] int GetMute(out bool m); }
+
   public static class Meter {
     static volatile bool run; static Thread thread;
+    // Spotify's own volume slider in the Windows mixer (0..1) - leaves game and system volume alone
+    public static float GetVolume(string proc) {
+      float best = -1;
+      foreach (var s in Sessions(proc)) { try { float v; ((ISimpleAudioVolume)s).GetMasterVolume(out v); best = Math.Max(best, v); } catch { } }
+      return best;
+    }
+    public static int SetVolume(string proc, float v) {
+      v = Math.Max(0f, Math.Min(1f, v)); var g = Guid.Empty; int n = 0;
+      foreach (var s in Sessions(proc)) { try { ((ISimpleAudioVolume)s).SetMasterVolume(v, ref g); n++; } catch { } }
+      return n;
+    }
+    static List<object> Sessions(string proc) {
+      var found = new List<object>();
+      var en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom(); IMMDevice dev;
+      if (en.GetDefaultAudioEndpoint(0, 1, out dev) != 0) return found;
+      Guid g = typeof(IAudioSessionManager2).GUID; object o; dev.Activate(ref g, 23, IntPtr.Zero, out o);
+      IAudioSessionEnumerator se; ((IAudioSessionManager2)o).GetSessionEnumerator(out se); int n; se.GetCount(out n);
+      for (int i = 0; i < n; i++) {
+        IAudioSessionControl2 s; se.GetSession(i, out s); uint pid; s.GetProcessId(out pid);
+        try { if (Process.GetProcessById((int)pid).ProcessName.Equals(proc, StringComparison.OrdinalIgnoreCase)) found.Add(s); } catch { }
+      }
+      return found;
+    }
     public static void Start(string proc) {
       if (run) return; run = true;
       thread = new Thread(() => Loop(proc)); thread.IsBackground = true; thread.SetApartmentState(ApartmentState.MTA); thread.Start();
@@ -103,6 +130,8 @@ while ($true) {
     $s = Session
     switch -regex ($line) {
       '^state$'  { [Console]::Out.WriteLine((State)) }
+      '^vol get$'   { [Console]::Out.WriteLine('{"vol":' + [math]::Round([SpotMeter.Meter]::GetVolume('Spotify'), 3).ToString([Globalization.CultureInfo]::InvariantCulture) + '}') }
+      '^vol (\d+(\.\d+)?)$' { $null = [SpotMeter.Meter]::SetVolume('Spotify', [float][double]$Matches[1]) }
       '^meter on$'  { [SpotMeter.Meter]::Start('Spotify') }
       '^meter off$' { [SpotMeter.Meter]::Stop() }
       '^play$'   { if ($s) { $null = Await ($s.TryPlayAsync()) ([bool]) } }

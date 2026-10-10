@@ -1,24 +1,27 @@
-// Spotify Overlay: F8 (configurable) drops a small always-on-top panel at the top of the screen over any game running
-// in borderless/windowed mode. It is a separate window - nothing is injected into the game - so it is anti-cheat safe.
-// Gaming-first: while hidden nothing runs (the media helper is stopped, no timers, the window is not painted).
-const { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, nativeImage, screen, shell } = require('electron');
-const { spawn } = require('child_process');
-const fs = require('fs'), path = require('path');
+// Spotify Overlay: a hotkey (F8 by default) drops a small always-on-top panel at the top of the screen over any game in
+// borderless/windowed mode. It is a separate window - nothing is injected into the game - so it is anti-cheat safe.
+// Gaming-first: while hidden nothing runs unless the optional corner globe is on (then only the meter + one small canvas).
+const { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, nativeImage, screen, shell, session } = require('electron');
+const { spawn, execFile } = require('child_process');
+const fs = require('fs'), path = require('path'), os = require('os');
 
 if (!app.requestSingleInstanceLock()) { app.quit(); return; }
 app.setAppUserModelId('com.collin.spotifyoverlay');
 
 const DATA = app.getPath('userData'), CFG_FILE = path.join(DATA, 'settings.json');
-const cfg = Object.assign({ hotkey: 'F8', clientId: '', autoHideSeconds: 8 }, (() => { try { return JSON.parse(fs.readFileSync(CFG_FILE, 'utf8')); } catch (_) { return {}; } })());
+const DEFAULTS = { hotkey: 'F8', clientId: '', autoHideSeconds: 8, position: 'top-center', showPlaylists: true, intensity: 1, claudeVoice: true,
+  corner: { enabled: false, corner: 'top-right', size: 180, opacity: 0.9, onlyWhilePlaying: true } };
+const cfg = (() => { let saved = {}; try { saved = JSON.parse(fs.readFileSync(CFG_FILE, 'utf8')); } catch (_) {}
+  return Object.assign({}, DEFAULTS, saved, { corner: Object.assign({}, DEFAULTS.corner, saved.corner || {}) }); })();
 const saveCfg = () => { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(CFG_FILE, JSON.stringify(cfg, null, 2)); };
 const spotify = require('./spotify-api').create(DATA);
 const HELPER = app.isPackaged ? path.join(process.resourcesPath, 'media-helper.ps1') : path.join(__dirname, 'media-helper.ps1');
 
-let win = null, setupWin = null, tray = null, visible = false;
+let win = null, setWin = null, cornerWin = null, tray = null, visible = false;
 const W = 990, H = 200;
 
-// ---------------------------------------------------------------- media helper (Windows media controls)
-let helper = null, helperBuf = '', pending = [], stopTimer = null, pollTimer = null, lastState = null, artCache = { key: '', url: '' };
+// ---------------------------------------------------------------- media helper (Windows media controls + Spotify meter)
+let helper = null, helperBuf = '', stopTimer = null, pollTimer = null, cornerPoll = null, lastState = null, artCache = { key: '', url: '' }, volume = null;
 function startHelper() {
   if (helper) return;
   helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', HELPER], { windowsHide: true });
@@ -30,15 +33,19 @@ function startHelper() {
       if (!line) continue;
       let msg; try { msg = JSON.parse(line); } catch (_) { continue; }
       if (msg.ready) continue;
-      if (msg.m) { if (win && visible) win.webContents.send('meter', msg.m); continue; }
+      if (msg.m) { if (win && visible) win.webContents.send('meter', msg.m); if (cornerWin) cornerWin.webContents.send('meter', msg.m); continue; }
+      if ('vol' in msg) { volume = msg.vol; if (win) win.webContents.send('volume', volume); continue; }
       if ('active' in msg) onState(msg);
     }
   });
   helper.on('exit', () => { helper = null; });
-  try { helper.stdin.write('state\n'); } catch (_) {}
+  write('state'); write('vol get');
+  if (needMeter()) write('meter on');
 }
-function stopHelper() { if (helper) { try { helper.stdin.write('quit\n'); } catch (_) {} setTimeout(() => { if (helper) helper.kill(); }, 1500); } }
-function send(cmd) { startHelper(); try { helper.stdin.write(cmd + '\n'); } catch (_) {} setTimeout(() => { if (helper) helper.stdin.write('state\n'); }, 450); }
+function write(cmd) { try { if (helper) helper.stdin.write(cmd + '\n'); } catch (_) {} }
+function stopHelper() { if (helper && !cornerWin) { write('quit'); setTimeout(() => { if (helper && !cornerWin) helper.kill(); }, 1500); } }
+function send(cmd) { startHelper(); write(cmd); setTimeout(() => write('state'), 450); }
+const needMeter = () => visible || !!cornerWin;
 
 async function onState(s) {
   lastState = s;
@@ -48,7 +55,12 @@ async function onState(s) {
   }
   push();
 }
-function push() { if (win && lastState) win.webContents.send('state', Object.assign({}, lastState, { art: artCache.url, connected: spotify.connected })); }
+function push() {
+  if (!lastState) return;
+  const s = Object.assign({}, lastState, { art: artCache.url, connected: spotify.connected });
+  if (win) win.webContents.send('state', s);
+  if (cornerWin) cornerWin.webContents.send('state', s);
+}
 
 // ---------------------------------------------------------------- the overlay window
 function createWindow() {
@@ -59,29 +71,29 @@ function createWindow() {
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true);
   win.loadFile('overlay.html');
-  win.on('blur', () => { if (visible) win.webContents.send('blur'); });
 }
 function place() {
-  const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  win.setBounds({ x: Math.round(d.bounds.x + (d.bounds.width - W) / 2), y: d.bounds.y + 10, width: W, height: H });
+  const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).bounds, m = 10;
+  const x = cfg.position === 'top-left' ? d.x + m : cfg.position === 'top-right' ? d.x + d.width - W - m : Math.round(d.x + (d.width - W) / 2);
+  win.setBounds({ x, y: d.y + m, width: W, height: H });
 }
 function show() {
   if (!win) return;
   clearTimeout(stopTimer); place(); startHelper();
-  clearInterval(pollTimer); pollTimer = setInterval(() => { if (helper) helper.stdin.write('state\n'); }, 1000);
-  visible = true; win.showInactive();            // don't steal focus from the game
-  try { helper.stdin.write('meter on\n'); } catch (_) {}
+  clearInterval(pollTimer); pollTimer = setInterval(() => write('state'), 1000);
+  visible = true; win.showInactive();             // don't steal focus from the game
+  write('meter on'); write('vol get');
   win.setAlwaysOnTop(true, 'screen-saver');
-  win.webContents.send('show', { autoHide: cfg.autoHideSeconds });
+  win.webContents.send('show', { autoHide: cfg.autoHideSeconds, intensity: cfg.intensity, showPlaylists: cfg.showPlaylists, hotkey: cfg.hotkey, voice: cfg.claudeVoice });
   if (spotify.connected) refreshPlaylists();
 }
 function hide() {
   if (!win || !visible) return;
   visible = false; clearInterval(pollTimer);
-  if (helper) { try { helper.stdin.write('meter off\n'); } catch (_) {} }
+  if (!cornerWin) write('meter off');
   win.webContents.send('hide');
-  setTimeout(() => { if (!visible) win.hide(); }, 170);       // let the exit animation finish
-  stopTimer = setTimeout(stopHelper, 60000);                  // helper exits a minute after the last use
+  setTimeout(() => { if (!visible) win.hide(); }, 170);        // let the exit animation finish
+  if (!cornerWin) stopTimer = setTimeout(stopHelper, 60000);   // helper exits a minute after the last use
 }
 function toggle() { visible ? hide() : show(); }
 
@@ -91,32 +103,106 @@ async function refreshPlaylists() {
   try { playlistCache = await spotify.playlists(); playlistAt = Date.now(); win.webContents.send('playlists', playlistCache); } catch (_) {}
 }
 
-// ---------------------------------------------------------------- setup window (Spotify connection + hotkey)
-function openSetup() {
-  if (setupWin) { setupWin.focus(); return; }
-  setupWin = new BrowserWindow({ width: 560, height: 640, title: 'Spotify Overlay - Setup', autoHideMenuBar: true, backgroundColor: '#121212',
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true } });
-  setupWin.loadFile('setup.html');
-  setupWin.on('closed', () => { setupWin = null; });
+// ---------------------------------------------------------------- corner globe (optional, click-through)
+function applyCorner() {
+  const c = cfg.corner;
+  if (!c.enabled) {
+    if (cornerWin) { cornerWin.destroy(); cornerWin = null; }
+    clearInterval(cornerPoll); cornerPoll = null;
+    if (!visible) { write('meter off'); stopTimer = setTimeout(stopHelper, 60000); }
+    return;
+  }
+  const d = screen.getPrimaryDisplay().bounds, size = Math.max(100, Math.min(320, c.size | 0)), m = 12;
+  const x = c.corner.endsWith('left') ? d.x + m : d.x + d.width - size - m;
+  const y = c.corner.startsWith('bottom') ? d.y + d.height - size - m : d.y + m;
+  if (!cornerWin) {
+    cornerWin = new BrowserWindow({ width: size, height: size, x, y, frame: false, transparent: true, resizable: false, movable: false, skipTaskbar: true,
+      alwaysOnTop: true, focusable: false, hasShadow: false, show: false, fullscreenable: false,
+      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, backgroundThrottling: true } });
+    cornerWin.setIgnoreMouseEvents(true);                 // clicks go straight through to the game
+    cornerWin.setAlwaysOnTop(true, 'screen-saver');
+    cornerWin.loadFile('corner.html');
+    cornerWin.webContents.once('did-finish-load', () => { sendCorner(); cornerWin.showInactive(); cornerWin.webContents.send('show'); push(); });
+  } else { cornerWin.setBounds({ x, y, width: size, height: size }); sendCorner(); }
+  clearTimeout(stopTimer); startHelper(); write('meter on');
+  clearInterval(cornerPoll); cornerPoll = setInterval(() => write('state'), 2000);
 }
+function sendCorner() { if (cornerWin) cornerWin.webContents.send('corner', { intensity: cfg.intensity, opacity: cfg.corner.opacity, onlyWhilePlaying: cfg.corner.onlyWhilePlaying }); }
 
+// ---------------------------------------------------------------- voice: mic clip -> offline Whisper -> Claude Haiku -> Spotify
+const FFMPEG = [path.join(os.homedir(), 'AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1.1-full_build/bin/ffmpeg.exe'), 'ffmpeg'].find((p) => p === 'ffmpeg' || fs.existsSync(p));
+const MODELS = path.join(process.env.LOCALAPPDATA || '', 'whisper-models');
+function claudeExe() {
+  const ext = path.join(os.homedir(), '.vscode', 'extensions');
+  const dirs = fs.existsSync(ext) ? fs.readdirSync(ext).filter((d) => d.startsWith('anthropic.claude-code-')) : [];
+  dirs.sort((a, b) => fs.statSync(path.join(ext, b)).mtimeMs - fs.statSync(path.join(ext, a)).mtimeMs);
+  for (const d of dirs) { const p = path.join(ext, d, 'resources', 'native-binary', 'claude.exe'); if (fs.existsSync(p)) return p; }
+  return 'claude';
+}
+function transcribe(file) {
+  return new Promise((resolve) => {
+    const out = 'voice-' + process.pid + '.txt';
+    try { fs.unlinkSync(path.join(MODELS, out)); } catch (_) {}
+    execFile(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-i', file, '-af', `aresample=16000,whisper=model=ggml-small.en.bin:language=en:queue=8:destination=${out}:format=text`, '-f', 'null', '-'],
+      { cwd: MODELS, windowsHide: true, timeout: 60000 }, () => {
+        let text = ''; try { text = fs.readFileSync(path.join(MODELS, out), 'utf8'); fs.unlinkSync(path.join(MODELS, out)); } catch (_) {}
+        resolve(text.replace(/\s+/g, ' ').trim());
+      });
+  });
+}
+const SYSTEM = 'You turn a spoken music request into a Spotify search. Ignore wake words like "hey claude". Reply with ONLY one line of JSON, no code fences: '
+  + '{"type":"track|artist|album|playlist|liked","query":"search text"}. For "play my liked songs" use type liked.';
+function askClaude(text) {
+  return new Promise((resolve) => {
+    // A tiny, tool-less, one-turn call on the user's own Claude subscription (~600 tokens in, a few hundred out).
+    execFile(claudeExe(), ['-p', text, '--model', 'haiku', '--system-prompt', SYSTEM, '--tools', '', '--strict-mcp-config', '--setting-sources', '',
+      '--no-session-persistence', '--output-format', 'json', '--max-turns', '1'], { cwd: os.tmpdir(), windowsHide: true, timeout: 45000 }, (err, out) => {
+      try { const j = JSON.parse(out); const m = /\{[^{}]*\}/.exec(j.result || ''); resolve(m ? JSON.parse(m[0]) : null); } catch (_) { resolve(null); }
+    });
+  });
+}
+ipcMain.handle('voice', async (_e, bytes) => {
+  const status = (s) => { if (win) win.webContents.send('voice-status', s); };
+  if (!spotify.connected) { status('Connect Spotify in Settings first'); return; }
+  const file = path.join(os.tmpdir(), `spotify-overlay-voice-${Date.now()}.webm`);
+  try {
+    fs.writeFileSync(file, Buffer.from(bytes));
+    status('Transcribing...');
+    const text = await transcribe(file);
+    if (!text || /^\[.*\]$/.test(text)) { status("Didn't catch that"); return; }
+    status(`"${text}" - asking Claude...`);
+    let ask = await askClaude(text);
+    if (!ask || !ask.type) ask = { type: 'track', query: text.replace(/^(hey,? )?claude,?\s*/i, '').replace(/^(play|put on)\s+/i, '') };   // fallback: search the words
+    const r = await spotify.searchAndPlay(ask.type, ask.query);
+    status(r.ok ? `Playing ${r.name}` : `Couldn't play that${r.error ? ': ' + r.error : ''}`);
+    setTimeout(() => write('state'), 800);
+  } catch (e) { status('Voice error: ' + e.message); }
+  finally { try { fs.unlinkSync(file); } catch (_) {} }
+});
+
+// ---------------------------------------------------------------- settings window
+function openSettings() {
+  if (setWin) { setWin.show(); setWin.focus(); return; }
+  setWin = new BrowserWindow({ width: 600, height: 760, title: 'Spotify Overlay - Settings', autoHideMenuBar: true, backgroundColor: '#121212',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true } });
+  setWin.loadFile('settings.html');
+  setWin.on('closed', () => { setWin = null; });
+}
 function registerHotkey(key) {
   globalShortcut.unregisterAll();
-  const ok = globalShortcut.register(key, toggle);
+  let ok = false; try { ok = globalShortcut.register(key, toggle); } catch (_) {}
   if (!ok && key !== 'F8') globalShortcut.register('F8', toggle);
   return ok;
 }
-
 function buildTray() {
+  if (tray) { tray.destroy(); tray = null; }
   const icon = nativeImage.createFromPath(path.join(__dirname, 'icon.png'));
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon.resize({ width: 16, height: 16 }));
   tray.setToolTip(`Spotify Overlay - press ${cfg.hotkey}`);
-  const startup = app.getLoginItemSettings().openAtLogin;
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: `Show overlay (${cfg.hotkey})`, click: show },
-    { label: spotify.connected ? 'Spotify connected - settings...' : 'Connect Spotify for playlists...', click: openSetup },
+    { label: 'Settings...', click: openSettings },
     { type: 'separator' },
-    { label: 'Start with Windows', type: 'checkbox', checked: startup, click: (m) => app.setLoginItemSettings({ openAtLogin: m.checked }) },
     { label: 'Quit', click: () => app.quit() },
   ]));
   tray.on('click', toggle);
@@ -125,30 +211,54 @@ function buildTray() {
 // ---------------------------------------------------------------- IPC
 ipcMain.on('cmd', (_e, c) => { if (['toggle', 'next', 'prev', 'play', 'pause'].includes(c)) send(c); });
 ipcMain.on('seek', (_e, s) => { if (Number.isFinite(s) && s >= 0) send('seek ' + s.toFixed(2)); });
+ipcMain.on('volume', (_e, v) => { if (Number.isFinite(v)) { startHelper(); write('vol ' + Math.max(0, Math.min(1, v)).toFixed(3)); volume = v; } });
 ipcMain.on('hide', hide);
-ipcMain.on('focus-overlay', () => { if (win && visible) win.focus(); });
+ipcMain.on('settings', openSettings);
 ipcMain.handle('play-playlist', async (_e, uri) => {
-  if (!/^spotify:playlist:[A-Za-z0-9]+$/.test(uri)) return false;
+  if (!/^spotify:(playlist:[A-Za-z0-9]+|collection:tracks)$/.test(uri)) return false;
   let ok = false; try { ok = await spotify.playPlaylist(uri); } catch (_) {}
-  if (!ok) { shell.openExternal(uri); setTimeout(() => send('play'), 2500); }   // no Premium: open it in the Spotify app, then press play
+  if (!ok) { shell.openExternal(uri); setTimeout(() => send('play'), 2500); }   // no Premium / no device: open it in the Spotify app, then press play
   return true;
 });
-ipcMain.handle('setup-get', () => ({ clientId: cfg.clientId, hotkey: cfg.hotkey, connected: spotify.connected, redirect: spotify.REDIRECT, autoHide: cfg.autoHideSeconds }));
-ipcMain.handle('setup-connect', async (_e, clientId) => {
+ipcMain.handle('settings-get', () => Object.assign({}, cfg, { connected: spotify.connected, redirect: spotify.REDIRECT, startWithWindows: app.getLoginItemSettings().openAtLogin }));
+ipcMain.handle('settings-set', (_e, patch) => {
+  const p = patch || {};
+  if ('hotkey' in p) { if (!registerHotkey(String(p.hotkey))) { registerHotkey(cfg.hotkey); return { ok: false, error: 'That key is taken or not valid.' }; } cfg.hotkey = String(p.hotkey); }
+  if ('autoHideSeconds' in p) cfg.autoHideSeconds = Math.max(0, Math.min(60, p.autoHideSeconds | 0));
+  if ('position' in p && ['top-center', 'top-left', 'top-right'].includes(p.position)) cfg.position = p.position;
+  if ('showPlaylists' in p) cfg.showPlaylists = !!p.showPlaylists;
+  if ('claudeVoice' in p) cfg.claudeVoice = !!p.claudeVoice;
+  if ('intensity' in p) cfg.intensity = Math.max(0.4, Math.min(2, +p.intensity || 1));
+  if ('startWithWindows' in p) app.setLoginItemSettings({ openAtLogin: !!p.startWithWindows });
+  if (p.corner) {
+    const c = p.corner, cur = cfg.corner;
+    if ('enabled' in c) cur.enabled = !!c.enabled;
+    if ('corner' in c && ['top-right', 'top-left', 'bottom-right', 'bottom-left'].includes(c.corner)) cur.corner = c.corner;
+    if ('size' in c) cur.size = Math.max(100, Math.min(320, c.size | 0));
+    if ('opacity' in c) cur.opacity = Math.max(0.2, Math.min(1, +c.opacity || 0.9));
+    if ('onlyWhilePlaying' in c) cur.onlyWhilePlaying = !!c.onlyWhilePlaying;
+    applyCorner();
+  }
+  if ('intensity' in p) sendCorner();
+  saveCfg(); buildTray();
+  return { ok: true };
+});
+ipcMain.handle('settings-connect', async (_e, clientId) => {
   if (!/^[0-9a-f]{32}$/i.test(clientId || '')) return { ok: false, error: 'That doesn\'t look like a Client ID (32 letters and numbers).' };
   cfg.clientId = clientId; saveCfg();
-  try { await spotify.login(clientId); playlistCache = null; buildTrayMenu(); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+  try { await spotify.login(clientId); playlistCache = null; return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
 });
-ipcMain.handle('setup-disconnect', () => { spotify.logout(); playlistCache = null; buildTrayMenu(); return true; });
-ipcMain.handle('setup-hotkey', (_e, key) => { const ok = registerHotkey(key); if (ok) { cfg.hotkey = key; saveCfg(); buildTrayMenu(); } return ok; });
-ipcMain.handle('setup-autohide', (_e, n) => { cfg.autoHideSeconds = Math.max(0, Math.min(60, n | 0)); saveCfg(); return true; });
-function buildTrayMenu() { if (tray) { tray.destroy(); tray = null; } buildTray(); }
+ipcMain.handle('settings-disconnect', () => { spotify.logout(); playlistCache = null; return true; });
 
 app.whenReady().then(() => {
+  // the mic is only used while the voice button is held/active in the overlay
+  session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === 'media'));
   createWindow(); buildTray();
   if (!registerHotkey(cfg.hotkey)) console.error('hotkey taken: ' + cfg.hotkey);
-  if (!cfg.clientId && !spotify.connected) openSetup();
+  if (cfg.corner.enabled) applyCorner();
+  const wantsSettings = process.argv.some((a) => a.toLowerCase().endsWith('setup'));
+  if (wantsSettings || (!cfg.clientId && !spotify.connected)) openSettings();
 });
-app.on('second-instance', (_e, argv) => { if (argv.includes('--setup')) openSetup(); else show(); });
-app.on('window-all-closed', (e) => e.preventDefault?.());
-app.on('will-quit', () => { globalShortcut.unregisterAll(); stopHelper(); });
+app.on('second-instance', (_e, argv) => { if (argv.some((a) => a.toLowerCase().endsWith('setup'))) openSettings(); else show(); });
+app.on('window-all-closed', () => {});   // keep running in the tray
+app.on('will-quit', () => { globalShortcut.unregisterAll(); if (helper) { write('quit'); } });

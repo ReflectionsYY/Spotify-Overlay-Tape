@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>Spotify Overlay - Settings</title>
+<style>
+  body { margin: 0; background: #121212; color: #eaeaea; font: 14px/1.5 "Segoe UI", system-ui, sans-serif; padding: 22px 28px 40px; }
+  h1 { font-size: 20px; margin: 0 0 2px; } .sub { color: #9a9a9a; margin-bottom: 8px; }
+  h2 { font-size: 12px; margin: 22px 0 8px; text-transform: uppercase; letter-spacing: .1em; color: #8fd3ff; }
+  .card { background: #1a1a1a; border: 1px solid #262626; border-radius: 10px; padding: 12px 14px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+  .row + .row { border-top: 1px solid #222; }
+  .hint { color: #8a8a8a; font-size: 12.5px; }
+  ol { padding-left: 20px; margin: 4px 0; } li { margin: 4px 0; }
+  code { background: #232323; padding: 1px 6px; border-radius: 4px; user-select: all; }
+  input[type=text], select { background: #1e1e1e; border: 1px solid #333; color: #fff; border-radius: 6px; padding: 7px 9px; font: inherit; }
+  input[type=range] { width: 160px; accent-color: #8f7bff; }
+  button { background: #8f7bff; color: #fff; border: 0; border-radius: 999px; padding: 7px 16px; font: 600 13px "Segoe UI"; cursor: pointer; }
+  button.ghost { background: #2a2a2a; }
+  .switch { position: relative; width: 40px; height: 22px; flex: none; } .switch input { display: none; }
+  .switch span { position: absolute; inset: 0; background: #3a3a3a; border-radius: 999px; transition: background 150ms; cursor: pointer; }
+  .switch span::after { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: transform 150ms ease-out; }
+  .switch input:checked + span { background: #8f7bff; } .switch input:checked + span::after { transform: translateX(18px); }
+  .key { min-width: 120px; text-align: center; cursor: pointer; } .key.listening { border-color: #8f7bff; color: #8f7bff; }
+  .ok { color: #1ed760; } .err { color: #ff7a7a; } a { color: #8fd3ff; }
+</style>
+</head>
+<body>
+  <h1>Spotify Overlay</h1>
+  <div class="sub">Changes save as you make them.</div>
+
+  <h2>Spotify</h2>
+  <div class="card">
+    <div id="connected" class="row" style="display:none"><span class="ok">Connected - playlists, Liked Songs, album art and voice requests are on.</span><button class="ghost" id="disconnect">Disconnect</button></div>
+    <div id="steps">
+      <ol>
+        <li>Open <a href="#" id="dash">developer.spotify.com/dashboard</a> and log in.</li>
+        <li><b>Create app</b>: name <code>Spotify Overlay</code>, description <code>Personal overlay</code>.</li>
+        <li>Redirect URI: <code id="redir">http://127.0.0.1:8888/callback</code> then <b>Add</b>.</li>
+        <li>Tick <b>Web API</b>, accept the terms, <b>Save</b>.</li>
+        <li>Open the app's <b>Settings</b>, copy the <b>Client ID</b>, paste it here:</li>
+      </ol>
+      <div class="row"><input type="text" id="cid" placeholder="Client ID" spellcheck="false" style="flex:1"><button id="connect">Connect</button></div>
+      <div class="hint" id="cmsg">You'll get one Spotify "Agree" page in your browser.</div>
+    </div>
+  </div>
+
+  <h2>Controls</h2>
+  <div class="card">
+    <div class="row"><div>Show / hide key<div class="hint">Click the box, then press the key or combo you want.</div></div><input type="text" id="hotkey" class="key" readonly></div>
+    <div class="row"><div>Overlay position</div><select id="position"><option value="top-center">Top center</option><option value="top-left">Top left</option><option value="top-right">Top right</option></select></div>
+    <div class="row"><div>Auto-hide<div class="hint">Seconds after your mouse leaves it. 0 = stays until you press the key.</div></div><input type="range" id="autoHide" min="0" max="30" step="1"><span id="autoHideV" style="width:32px;text-align:right"></span></div>
+    <div class="row"><div>Show playlists panel</div><label class="switch"><input type="checkbox" id="showPlaylists"><span></span></label></div>
+    <div class="row"><div>"Hey Claude" voice button<div class="hint">Mic button on the overlay. Uses your Claude subscription (Haiku, a few hundred tokens) only when you press it.</div></div><label class="switch"><input type="checkbox" id="claudeVoice"><span></span></label></div>
+    <div class="row"><div>Start with Windows</div><label class="switch"><input type="checkbox" id="startWithWindows"><span></span></label></div>
+  </div>
+
+  <h2>Visuals</h2>
+  <div class="card">
+    <div class="row"><div>Music reaction strength<div class="hint">How hard the globe and waveform react to the music.</div></div><input type="range" id="intensity" min="0.4" max="2" step="0.1"><span id="intensityV" style="width:32px;text-align:right"></span></div>
+  </div>
+
+  <h2>Corner globe</h2>
+  <div class="card">
+    <div class="row"><div>Show the globe in a corner<div class="hint">Small, click-through, stays over your games. Uses a little GPU while shown.</div></div><label class="switch"><input type="checkbox" id="cEnabled"><span></span></label></div>
+    <div class="row"><div>Corner</div><select id="cCorner"><option value="top-right">Top right</option><option value="top-left">Top left</option><option value="bottom-right">Bottom right</option><option value="bottom-left">Bottom left</option></select></div>
+    <div class="row"><div>Size</div><input type="range" id="cSize" min="100" max="320" step="10"><span id="cSizeV" style="width:40px;text-align:right"></span></div>
+    <div class="row"><div>Opacity</div><input type="range" id="cOpacity" min="0.2" max="1" step="0.05"><span id="cOpacityV" style="width:40px;text-align:right"></span></div>
+    <div class="row"><div>Only while music is playing</div><label class="switch"><input type="checkbox" id="cOnly"><span></span></label></div>
+  </div>
+<script>
+  const $ = (id) => document.getElementById(id), P = window.overlay.prefs;
+  let c = null;
+  const set = async (patch) => { const r = await P.set(patch); if (r && !r.ok && r.error) alert(r.error); await refresh(); };
+  async function refresh() {
+    c = await P.get();
+    $('connected').style.display = c.connected ? 'flex' : 'none'; $('steps').style.display = c.connected ? 'none' : 'block';
+    $('redir').textContent = c.redirect; if (!$('cid').value) $('cid').value = c.clientId || '';
+    $('hotkey').value = c.hotkey; $('position').value = c.position;
+    $('autoHide').value = c.autoHideSeconds; $('autoHideV').textContent = c.autoHideSeconds + 's';
+    $('showPlaylists').checked = c.showPlaylists; $('claudeVoice').checked = c.claudeVoice; $('startWithWindows').checked = c.startWithWindows;
+    $('intensity').value = c.intensity; $('intensityV').textContent = (+c.intensity).toFixed(1) + 'x';
+    $('cEnabled').checked = c.corner.enabled; $('cCorner').value = c.corner.corner; $('cSize').value = c.corner.size; $('cSizeV').textContent = c.corner.size + 'px';
+    $('cOpacity').value = c.corner.opacity; $('cOpacityV').textContent = Math.round(c.corner.opacity * 100) + '%'; $('cOnly').checked = c.corner.onlyWhilePlaying;
+  }
+  $('dash').onclick = (e) => { e.preventDefault(); window.open('https://developer.spotify.com/dashboard'); };
+  $('connect').onclick = async () => {
+    $('cmsg').className = 'hint'; $('cmsg').textContent = 'Waiting for you to click "Agree" in the browser...';
+    const r = await P.connect($('cid').value.trim());
+    $('cmsg').className = r.ok ? 'ok' : 'err'; $('cmsg').textContent = r.ok ? 'Connected!' : r.error; refresh();
+  };
+  $('disconnect').onclick = async () => { await P.disconnect(); refresh(); };
+
+  // hotkey capture: click, then press a key/combo (Esc cancels)
+  const NAMES = { ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Escape: 'Esc' };
+  $('hotkey').onclick = () => { $('hotkey').value = 'Press a key...'; $('hotkey').classList.add('listening'); };
+  $('hotkey').addEventListener('keydown', (e) => {
+    if (!$('hotkey').classList.contains('listening')) return;
+    e.preventDefault();
+    if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+    $('hotkey').classList.remove('listening');
+    if (e.key === 'Escape') { refresh(); return; }
+    const k = NAMES[e.key] || (e.key.length === 1 ? e.key.toUpperCase() : e.key);
+    set({ hotkey: [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift', k].filter(Boolean).join('+') });
+  });
+  $('hotkey').addEventListener('blur', () => { if ($('hotkey').classList.contains('listening')) { $('hotkey').classList.remove('listening'); refresh(); } });
+
+  $('position').onchange = (e) => set({ position: e.target.value });
+  $('autoHide').oninput = (e) => { $('autoHideV').textContent = e.target.value + 's'; }; $('autoHide').onchange = (e) => set({ autoHideSeconds: +e.target.value });
+  $('showPlaylists').onchange = (e) => set({ showPlaylists: e.target.checked });
+  $('claudeVoice').onchange = (e) => set({ claudeVoice: e.target.checked });
+  $('startWithWindows').onchange = (e) => set({ startWithWindows: e.target.checked });
+  $('intensity').oninput = (e) => { $('intensityV').textContent = (+e.target.value).toFixed(1) + 'x'; }; $('intensity').onchange = (e) => set({ intensity: +e.target.value });
+  $('cEnabled').onchange = (e) => set({ corner: { enabled: e.target.checked } });
+  $('cCorner').onchange = (e) => set({ corner: { corner: e.target.value } });
+  $('cSize').oninput = (e) => { $('cSizeV').textContent = e.target.value + 'px'; }; $('cSize').onchange = (e) => set({ corner: { size: +e.target.value } });
+  $('cOpacity').oninput = (e) => { $('cOpacityV').textContent = Math.round(e.target.value * 100) + '%'; }; $('cOpacity').onchange = (e) => set({ corner: { opacity: +e.target.value } });
+  $('cOnly').onchange = (e) => set({ corner: { onlyWhilePlaying: e.target.checked } });
+  refresh();
+</script>
+</body>
+</html>
