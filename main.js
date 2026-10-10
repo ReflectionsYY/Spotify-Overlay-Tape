@@ -15,7 +15,7 @@ const spotify = require('./spotify-api').create(DATA);
 const HELPER = app.isPackaged ? path.join(process.resourcesPath, 'media-helper.ps1') : path.join(__dirname, 'media-helper.ps1');
 
 let win = null, setupWin = null, tray = null, visible = false;
-const W = 820, H = 168;
+const W = 990, H = 200;
 
 // ---------------------------------------------------------------- media helper (Windows media controls)
 let helper = null, helperBuf = '', pending = [], stopTimer = null, pollTimer = null, lastState = null, artCache = { key: '', url: '' };
@@ -30,6 +30,7 @@ function startHelper() {
       if (!line) continue;
       let msg; try { msg = JSON.parse(line); } catch (_) { continue; }
       if (msg.ready) continue;
+      if (msg.m) { if (win && visible) win.webContents.send('meter', msg.m); continue; }
       if ('active' in msg) onState(msg);
     }
   });
@@ -69,6 +70,7 @@ function show() {
   clearTimeout(stopTimer); place(); startHelper();
   clearInterval(pollTimer); pollTimer = setInterval(() => { if (helper) helper.stdin.write('state\n'); }, 1000);
   visible = true; win.showInactive();            // don't steal focus from the game
+  try { helper.stdin.write('meter on\n'); } catch (_) {}
   win.setAlwaysOnTop(true, 'screen-saver');
   win.webContents.send('show', { autoHide: cfg.autoHideSeconds });
   if (spotify.connected) refreshPlaylists();
@@ -76,6 +78,7 @@ function show() {
 function hide() {
   if (!win || !visible) return;
   visible = false; clearInterval(pollTimer);
+  if (helper) { try { helper.stdin.write('meter off\n'); } catch (_) {} }
   win.webContents.send('hide');
   setTimeout(() => { if (!visible) win.hide(); }, 170);       // let the exit animation finish
   stopTimer = setTimeout(stopHelper, 60000);                  // helper exits a minute after the last use

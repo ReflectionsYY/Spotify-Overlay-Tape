@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('overlay', {
   hide: () => ipcRenderer.send('hide'),
   focus: () => ipcRenderer.send('focus-overlay'),
   playPlaylist: (uri) => ipcRenderer.invoke('play-playlist', uri),
-  on: (ch, fn) => { if (['state', 'show', 'hide', 'blur', 'playlists'].includes(ch)) ipcRenderer.on(ch, (_e, d) => fn(d)); },
+  on: (ch, fn) => { if (['state', 'show', 'hide', 'blur', 'playlists', 'meter'].includes(ch)) ipcRenderer.on(ch, (_e, d) => fn(d)); },
   setup: {
     get: () => ipcRenderer.invoke('setup-get'),
     connect: (id) => ipcRenderer.invoke('setup-connect', id),

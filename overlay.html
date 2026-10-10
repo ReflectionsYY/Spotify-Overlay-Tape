@@ -5,11 +5,11 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://i.scdn.co https://*.scdn.co https://mosaic.scdn.co https://image-cdn-ak.spotifycdn.com https://*.spotifycdn.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
 <title>Spotify Overlay</title>
 <style>
-  :root { --bg: rgba(14, 16, 18, .9); --line: rgba(255,255,255,.08); --text: #f2f3f5; --dim: #9aa1a8; --green: #1ed760; }
+  :root { --bg: rgba(12, 14, 20, .94); --line: rgba(255,255,255,.08); --text: #f2f3f5; --dim: #9aa1a8; --green: #1ed760; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: transparent; overflow: hidden; height: 100%; font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; color: var(--text); user-select: none; }
   .panel { position: absolute; inset: 6px 6px 10px; display: flex; gap: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.45); overflow: hidden; backdrop-filter: blur(14px);
+    overflow: hidden;
     transform: translateY(-115%); opacity: 0; transition: transform 180ms cubic-bezier(.2,0,0,1), opacity 180ms ease-out; }
   .panel.in { transform: translateY(0); opacity: 1; }
   .panel.out { transform: translateY(-115%); opacity: 0; transition: transform 140ms cubic-bezier(.3,0,1,1), opacity 140ms ease-in; }
@@ -45,6 +45,9 @@
   .big { width: 42px; height: 42px; background: var(--text); color: #111; } .big:hover { background: #fff; } .big svg { width: 20px; height: 20px; }
   .key { margin-left: auto; font-size: 11px; color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
   .empty { color: var(--dim); font-size: 13px; }
+  #wave { width: 100%; height: 34px; display: block; }
+  .viz { width: 176px; flex: none; display: grid; place-items: center; border-left: 1px solid var(--line); }
+  #globe { width: 156px; height: 156px; display: block; }
 </style>
 </head>
 <body>
@@ -58,6 +61,7 @@
     <div class="info">
       <div class="title" id="title">Nothing playing</div>
       <div class="artist" id="artist">Open Spotify and press play</div>
+      <canvas id="wave"></canvas>
       <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
       <div class="times"><span id="pos">0:00</span><span class="left" id="left">-0:00</span></div>
       <div class="controls">
@@ -68,6 +72,7 @@
       </div>
     </div>
   </div>
+  <div class="viz"><canvas id="globe"></canvas></div>
 </div>
 <script>
   const $ = (id) => document.getElementById(id), panel = $('panel');
@@ -81,7 +86,97 @@
     $('fill').style.width = (st.duration ? pos / st.duration * 100 : 0) + '%';
     $('pos').textContent = fmt(pos); $('left').textContent = '-' + fmt(st.duration - pos);
   }
-  function loop() { render(); raf = requestAnimationFrame(loop); }   // only while visible
+  // ---------------------------------------------------------------- music-driven visuals (globe + waveform)
+  // Level comes from Spotify's own meter (~30 per second). Calm music -> light blue, loud/beats -> purple.
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  const globe = $('globe'), gx = globe.getContext('2d'), wave = $('wave'), wx = wave.getContext('2d');
+  function fit(c) { const r = c.getBoundingClientRect(); c.width = Math.round(r.width * DPR); c.height = Math.round(r.height * DPR); }
+  let level = 0, slow = 0, beat = 0, hue = 195, rot = 0, phase = 0, lastDraw = 0;
+  const history = new Float32Array(96);
+  const rain = Array.from({ length: 14 }, () => ({ lon: Math.floor(Math.random() * 18) * 20, lat: 90 - Math.random() * 180, speed: 0.6 + Math.random() * 1.4 }));
+  window.overlay.on('meter', (m) => {
+    const p = Math.max(m[0], m[1]);
+    if (p - slow > 0.16 && p > 0.22) beat = 1;               // a sudden jump over the running level = a beat
+    level = p; history.copyWithin(0, 1); history[history.length - 1] = p;
+  });
+
+  function drawGlobe(t) {
+    const W = globe.width, H = globe.height, cx = W / 2, cy = H / 2, R = W * 0.4, tilt = 0.38;
+    const energy = Math.min(1, slow * 1.7), sat = 90, light = 62 + beat * 12;
+    gx.clearRect(0, 0, W, H);
+    gx.globalCompositeOperation = 'lighter';
+    const P = (lat, lon) => {   // degrees -> screen, with spin and a fixed tilt; z>0 faces the viewer
+      const la = lat * Math.PI / 180, lo = (lon * Math.PI / 180) + rot;
+      const x = Math.cos(la) * Math.sin(lo), y = Math.sin(la), z = Math.cos(la) * Math.cos(lo);
+      const y2 = y * Math.cos(tilt) - z * Math.sin(tilt), z2 = y * Math.sin(tilt) + z * Math.cos(tilt);
+      return [cx + x * R, cy - y2 * R, z2];
+    };
+    const seg = (a, b, w, alphaScale) => {
+      const z = (a[2] + b[2]) / 2, al = (z > 0 ? 0.25 + 0.6 * z : 0.05 + 0.08 * (1 + z)) * alphaScale;
+      gx.strokeStyle = `hsla(${hue + (z > 0 ? 0 : 25)}, ${sat}%, ${light}%, ${al})`; gx.lineWidth = w;
+      gx.beginPath(); gx.moveTo(a[0], a[1]); gx.lineTo(b[0], b[1]); gx.stroke();
+    };
+    // grid: latitudes every 20 degrees, longitudes every 20 degrees
+    for (let lat = -60; lat <= 60; lat += 20) { let prev = P(lat, 0); for (let lon = 8; lon <= 360; lon += 8) { const p = P(lat, lon); seg(prev, p, 1.1 * DPR, 1); prev = p; } }
+    for (let lon = 0; lon < 360; lon += 20) { let prev = P(-90, lon); for (let lat = -82; lat <= 90; lat += 8) { const p = P(lat, lon); seg(prev, p, 1.1 * DPR, 1); prev = p; } }
+    // nodes at the crossings - pulse on beats
+    for (let lat = -60; lat <= 60; lat += 20) for (let lon = 0; lon < 360; lon += 20) {
+      const p = P(lat, lon); if (p[2] <= 0.05) continue;
+      const tw = 0.5 + 0.5 * Math.sin(t * 0.004 + lat * 0.7 + lon * 1.3);
+      gx.fillStyle = `hsla(${hue + 20}, 100%, ${70 + beat * 20}%, ${(0.35 + 0.5 * tw) * p[2]})`;
+      gx.beginPath(); gx.arc(p[0], p[1], (1.2 + beat * 1.6 + energy) * DPR, 0, 6.283); gx.fill();
+    }
+    // matrix rain: bright heads running down longitude lines with fading trails
+    for (const d of rain) {
+      d.lat -= d.speed * (1 + energy * 3);
+      if (d.lat < -90) { d.lat = 90; d.lon = Math.floor(Math.random() * 18) * 20; d.speed = 0.6 + Math.random() * 1.4; }
+      for (let k = 0; k < 7; k++) {
+        const p = P(d.lat + k * 4, d.lon); if (p[2] <= 0) continue;
+        gx.fillStyle = `hsla(${hue - 15}, 100%, ${k === 0 ? 92 : 70}%, ${(1 - k / 7) * 0.9 * p[2]})`;
+        gx.fillRect(p[0] - 1.2 * DPR, p[1] - 1.2 * DPR, 2.4 * DPR, 2.4 * DPR);
+      }
+    }
+    // soft rim
+    gx.strokeStyle = `hsla(${hue}, ${sat}%, 65%, ${0.18 + energy * 0.25})`; gx.lineWidth = (2 + beat * 3) * DPR;
+    gx.beginPath(); gx.arc(cx, cy, R + 3 * DPR, 0, 6.283); gx.stroke();
+    gx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawWave() {
+    const W = wave.width, H = wave.height, mid = H / 2, energy = Math.min(1, slow * 1.7);
+    wx.clearRect(0, 0, W, H);
+    // level history as faint mirrored bars (last ~3 seconds, scrolling left)
+    const n = history.length, bw = W / n;
+    for (let i = 0; i < n; i++) {
+      const h = Math.max(1, history[i] * H * 0.9);
+      wx.fillStyle = `hsla(${hue + i * 0.4}, 90%, 60%, ${0.12 + 0.18 * (i / n)})`;
+      wx.fillRect(i * bw, mid - h / 2, Math.max(1, bw - DPR), h);
+    }
+    // live oscilloscope line: amplitude follows the music, speed follows energy
+    const amp = (2 + level * 15 + beat * 4) * DPR;
+    const grad = wx.createLinearGradient(0, 0, W, 0);
+    grad.addColorStop(0, `hsl(${hue - 10}, 95%, 66%)`); grad.addColorStop(1, `hsl(${hue + 45}, 95%, 68%)`);
+    wx.strokeStyle = grad; wx.lineWidth = 2 * DPR; wx.beginPath();
+    for (let x = 0; x <= W; x += 3 * DPR) {
+      const u = x / W, env = Math.sin(u * Math.PI);
+      const y = mid + env * amp * (Math.sin(u * 22 + phase) * 0.6 + Math.sin(u * 47 - phase * 1.7) * 0.3 + Math.sin(u * 93 + phase * 2.3) * 0.15 * (0.5 + energy));
+      x ? wx.lineTo(x, y) : wx.moveTo(x, y);
+    }
+    wx.stroke();
+  }
+
+  function visuals(t) {
+    if (t - lastDraw < 32) return;            // ~30 fps is plenty and keeps the GPU free for the game
+    lastDraw = t;
+    slow += (level - slow) * 0.08; beat *= 0.86;
+    const target = 195 + 85 * Math.min(1, slow * 1.7) + beat * 12;   // light blue (195) -> purple (280)
+    hue += (target - hue) * 0.05;
+    rot += 0.006 + Math.min(1, slow * 1.7) * 0.025 + beat * 0.02;
+    phase += 0.08 + slow * 0.6;
+    drawGlobe(t); drawWave();
+  }
+  function loop(t) { render(); visuals(t || performance.now()); raf = requestAnimationFrame(loop); }   // only while visible
+  requestAnimationFrame(() => { fit(globe); fit(wave); });
   function armHide() { clearTimeout(hideTimer); if (autoHide > 0 && !hovering) hideTimer = setTimeout(() => window.overlay.hide(), autoHide * 1000); }
 
   window.overlay.on('state', (s) => {
