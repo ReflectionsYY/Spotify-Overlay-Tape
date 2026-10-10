@@ -58,6 +58,7 @@
 
   <h2>Visuals</h2>
   <div class="card">
+    <div class="row"><div>Open / close sound<div class="hint">Plays when the overlay slides in and out. 0 turns it off.</div></div><input type="range" id="sfxVolume" min="0" max="1" step="0.05"><span id="sfxVolumeV" style="width:32px;text-align:right"></span></div>
     <div class="row"><div>Music reaction strength<div class="hint">How hard the globe and waveform react to the music.</div></div><input type="range" id="intensity" min="0.4" max="2" step="0.1"><span id="intensityV" style="width:32px;text-align:right"></span></div>
   </div>
 
@@ -80,6 +81,7 @@
     $('hotkey').value = c.hotkey; $('position').value = c.position;
     $('autoHide').value = c.autoHideSeconds; $('autoHideV').textContent = c.autoHideSeconds + 's';
     $('showPlaylists').checked = c.showPlaylists; $('claudeVoice').checked = c.claudeVoice; $('withSpotify').checked = c.withSpotify;
+    $('sfxVolume').value = c.sfxVolume; $('sfxVolumeV').textContent = Math.round(c.sfxVolume * 100) + '%';
     $('intensity').value = c.intensity; $('intensityV').textContent = (+c.intensity).toFixed(1) + 'x';
     $('cEnabled').checked = c.corner.enabled; $('cCorner').value = c.corner.corner; $('cSize').value = c.corner.size; $('cSizeV').textContent = c.corner.size + 'px';
     $('cOpacity').value = c.corner.opacity; $('cOpacityV').textContent = Math.round(c.corner.opacity * 100) + '%'; $('cOnly').checked = c.corner.onlyWhilePlaying;
@@ -111,7 +113,8 @@
   $('showPlaylists').onchange = (e) => set({ showPlaylists: e.target.checked });
   $('claudeVoice').onchange = (e) => set({ claudeVoice: e.target.checked });
   $('withSpotify').onchange = (e) => set({ withSpotify: e.target.checked });
-  $('intensity').oninput = (e) => { $('intensityV').textContent = (+e.target.value).toFixed(1) + 'x'; }; $('intensity').onchange = (e) => set({ intensity: +e.target.value });
+  $('sfxVolume').oninput = (e) => { $('sfxVolumeV').textContent = Math.round(e.target.value * 100) + '%'; }; $('sfxVolume').onchange = (e) => set({ sfxVolume: +e.target.value });
+  $('intensity').oninput =(e) => { $('intensityV').textContent = (+e.target.value).toFixed(1) + 'x'; }; $('intensity').onchange = (e) => set({ intensity: +e.target.value });
   $('cEnabled').onchange = (e) => set({ corner: { enabled: e.target.checked } });
   $('cCorner').onchange = (e) => set({ corner: { corner: e.target.value } });
   $('cSize').oninput = (e) => { $('cSizeV').textContent = e.target.value + 'px'; }; $('cSize').onchange = (e) => set({ corner: { size: +e.target.value } });

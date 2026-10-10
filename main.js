@@ -10,7 +10,7 @@ if (process.argv.includes('quit-now')) { app.quit(); return; }   // the watcher 
 app.setAppUserModelId('com.collin.spotifyoverlay');
 
 const DATA = app.getPath('userData'), CFG_FILE = path.join(DATA, 'settings.json');
-const DEFAULTS = { hotkey: 'F8', clientId: '', autoHideSeconds: 8, position: 'top-center', showPlaylists: true, intensity: 1, claudeVoice: true,
+const DEFAULTS = { hotkey: 'F8', clientId: '', autoHideSeconds: 8, position: 'top-center', showPlaylists: true, intensity: 1, claudeVoice: true, sfxVolume: 0.6,
   corner: { enabled: false, corner: 'top-right', size: 180, opacity: 0.9, onlyWhilePlaying: true } };
 const cfg = (() => { let saved = {}; try { saved = JSON.parse(fs.readFileSync(CFG_FILE, 'utf8')); } catch (_) {}
   return Object.assign({}, DEFAULTS, saved, { corner: Object.assign({}, DEFAULTS.corner, saved.corner || {}) }); })();
@@ -85,7 +85,7 @@ function show() {
   visible = true; win.showInactive();             // don't steal focus from the game
   write('meter on'); write('vol get');
   win.setAlwaysOnTop(true, 'screen-saver');
-  win.webContents.send('show', { autoHide: cfg.autoHideSeconds, intensity: cfg.intensity, showPlaylists: cfg.showPlaylists, hotkey: cfg.hotkey, voice: cfg.claudeVoice });
+  win.webContents.send('show', { autoHide: cfg.autoHideSeconds, intensity: cfg.intensity, showPlaylists: cfg.showPlaylists, hotkey: cfg.hotkey, voice: cfg.claudeVoice, sfxVolume: cfg.sfxVolume });
   if (spotify.connected) { refreshPlaylists(); spotify.shuffle().then((s) => { if (win && s !== null) win.webContents.send('shuffle', s); }).catch(() => {}); }
 }
 function hide() {
@@ -272,7 +272,8 @@ ipcMain.handle('settings-set', (_e, patch) => {
   if ('position' in p && ['top-center', 'top-left', 'top-right'].includes(p.position)) cfg.position = p.position;
   if ('showPlaylists' in p) cfg.showPlaylists = !!p.showPlaylists;
   if ('claudeVoice' in p) cfg.claudeVoice = !!p.claudeVoice;
-  if ('intensity' in p) cfg.intensity = Math.max(0.4, Math.min(2, +p.intensity || 1));
+  if ('sfxVolume' in p) cfg.sfxVolume = Math.max(0, Math.min(1, +p.sfxVolume || 0));
+  if ('intensity' in p) cfg.intensity =Math.max(0.4, Math.min(2, +p.intensity || 1));
   if ('withSpotify' in p) setWithSpotify(!!p.withSpotify);
   if (p.corner) {
     const c = p.corner, cur = cfg.corner;

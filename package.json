@@ -27,7 +27,9 @@
                                 "settings.html",
                                 "media-helper.ps1",
                                 "icon.png",
-                                "watcher/SpotifyOverlayWatcher.exe"
+                                "watcher/SpotifyOverlayWatcher.exe",
+                                "sounds/open.wav",
+                                "sounds/close.wav"
                             ],
                   "extraResources":  [
                                          {
