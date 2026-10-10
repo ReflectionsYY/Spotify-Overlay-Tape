@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>Spotify Overlay - Setup</title>
+<style>
+  body { margin: 0; background: #121212; color: #eaeaea; font: 14px/1.5 "Segoe UI", system-ui, sans-serif; padding: 26px 30px; }
+  h1 { font-size: 20px; margin: 0 0 4px; } .sub { color: #9a9a9a; margin-bottom: 22px; }
+  h2 { font-size: 14px; margin: 22px 0 8px; text-transform: uppercase; letter-spacing: .08em; color: #1ed760; }
+  ol { padding-left: 20px; margin: 0; } li { margin: 6px 0; }
+  code { background: #232323; padding: 2px 6px; border-radius: 4px; user-select: all; }
+  input { background: #1e1e1e; border: 1px solid #333; color: #fff; border-radius: 6px; padding: 8px 10px; font: inherit; width: 100%; box-sizing: border-box; }
+  button { background: #1ed760; color: #000; border: 0; border-radius: 999px; padding: 9px 20px; font: 600 14px "Segoe UI"; cursor: pointer; margin-top: 10px; }
+  button.ghost { background: #2a2a2a; color: #eee; }
+  .row { display: flex; gap: 10px; align-items: center; } .msg { margin-top: 8px; min-height: 20px; color: #9a9a9a; } .ok { color: #1ed760; } .err { color: #ff7a7a; }
+  a { color: #1ed760; }
+</style>
+</head>
+<body>
+  <h1>Spotify Overlay</h1>
+  <div class="sub">Press <b id="hk">F8</b> in any game to show it. Song, time left and controls work right away.</div>
+
+  <h2>Connect playlists (one time, about 2 minutes)</h2>
+  <div id="connectedBox" style="display:none"><span class="ok">Connected to Spotify.</span> <button class="ghost" id="disconnect">Disconnect</button></div>
+  <div id="steps">
+    <ol>
+      <li>Open <a href="#" id="dash">developer.spotify.com/dashboard</a> and log in with your Spotify account.</li>
+      <li>Click <b>Create app</b>. Name: <code>Spotify Overlay</code>, description: <code>Personal overlay</code>.</li>
+      <li>Redirect URI: <code id="redir">http://127.0.0.1:8888/callback</code> then click <b>Add</b>.</li>
+      <li>Tick <b>Web API</b>, accept the terms, click <b>Save</b>.</li>
+      <li>Open the app's <b>Settings</b>, copy the <b>Client ID</b> and paste it here:</li>
+    </ol>
+    <input id="cid" placeholder="Client ID (32 letters and numbers)" spellcheck="false">
+    <button id="connect">Connect</button>
+    <div class="msg" id="msg">You'll get one Spotify "Agree" page in your browser.</div>
+  </div>
+
+  <h2>Hotkey</h2>
+  <div class="row"><input id="hotkey" style="max-width:160px"><button class="ghost" id="saveKey" style="margin-top:0">Save</button></div>
+  <div class="msg" id="keyMsg">Examples: F8, F9, Ctrl+Shift+S, Alt+M</div>
+
+  <h2>Auto-hide</h2>
+  <div class="row"><input id="ah" type="number" min="0" max="60" style="max-width:90px"> seconds after you stop using it (0 = stay until you press the key) <button class="ghost" id="saveAh" style="margin-top:0">Save</button></div>
+<script>
+  const $ = (id) => document.getElementById(id), s = window.overlay.setup;
+  async function refresh() {
+    const c = await s.get();
+    $('hk').textContent = c.hotkey; $('hotkey').value = c.hotkey; $('cid').value = c.clientId || ''; $('redir').textContent = c.redirect; $('ah').value = c.autoHide;
+    $('connectedBox').style.display = c.connected ? 'block' : 'none'; $('steps').style.display = c.connected ? 'none' : 'block';
+  }
+  $('dash').onclick = (e) => { e.preventDefault(); window.open('https://developer.spotify.com/dashboard'); };
+  $('connect').onclick = async () => {
+    $('msg').className = 'msg'; $('msg').textContent = 'Waiting for you to click "Agree" in the browser...';
+    const r = await s.connect($('cid').value.trim());
+    $('msg').className = 'msg ' + (r.ok ? 'ok' : 'err'); $('msg').textContent = r.ok ? 'Connected! Press your hotkey in game.' : r.error; refresh();
+  };
+  $('disconnect').onclick = async () => { await s.disconnect(); refresh(); };
+  $('saveKey').onclick = async () => { const ok = await s.hotkey($('hotkey').value.trim()); $('keyMsg').className = 'msg ' + (ok ? 'ok' : 'err'); $('keyMsg').textContent = ok ? 'Saved.' : 'That key is taken or not valid.'; refresh(); };
+  $('saveAh').onclick = async () => { await s.autoHide(+$('ah').value); refresh(); };
+  refresh();
+</script>
+</body>
+</html>

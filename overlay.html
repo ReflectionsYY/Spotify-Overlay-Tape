@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://i.scdn.co https://*.scdn.co https://mosaic.scdn.co https://image-cdn-ak.spotifycdn.com https://*.spotifycdn.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>Spotify Overlay</title>
+<style>
+  :root { --bg: rgba(14, 16, 18, .9); --line: rgba(255,255,255,.08); --text: #f2f3f5; --dim: #9aa1a8; --green: #1ed760; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: transparent; overflow: hidden; height: 100%; font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; color: var(--text); user-select: none; }
+  .panel { position: absolute; inset: 6px 6px 10px; display: flex; gap: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45); overflow: hidden; backdrop-filter: blur(14px);
+    transform: translateY(-115%); opacity: 0; transition: transform 180ms cubic-bezier(.2,0,0,1), opacity 180ms ease-out; }
+  .panel.in { transform: translateY(0); opacity: 1; }
+  .panel.out { transform: translateY(-115%); opacity: 0; transition: transform 140ms cubic-bezier(.3,0,1,1), opacity 140ms ease-in; }
+
+  /* left: playlists */
+  .lists { width: 210px; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  .lists h3 { font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding: 10px 12px 6px; }
+  .scroll { overflow-y: auto; flex: 1; padding: 0 6px 8px; }
+  .scroll::-webkit-scrollbar { width: 4px; } .scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 4px; }
+  .pl { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; cursor: pointer; font-size: 12.5px; color: #dfe2e5; }
+  .pl:hover { background: rgba(255,255,255,.07); }
+  .pl:active { transform: scale(.98); }
+  .pl img, .pl .ph { width: 26px; height: 26px; border-radius: 5px; object-fit: cover; flex: none; background: #2a2d31; }
+  .pl span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .connect { margin: 8px 10px; font-size: 12px; color: var(--dim); line-height: 1.4; }
+
+  /* right: now playing */
+  .now { flex: 1; display: flex; align-items: center; gap: 16px; padding: 14px 18px; min-width: 0; }
+  .art { width: 112px; height: 112px; border-radius: 10px; flex: none; background: #22252a center/cover no-repeat; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .title { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist { font-size: 13px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { position: relative; height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); cursor: pointer; margin-top: 6px; }
+  .bar:hover { height: 7px; margin-top: 5px; }
+  .fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: var(--green); }
+  .times { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .times .left { color: var(--text); font-weight: 600; }
+  .controls { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+  button { background: none; border: none; color: var(--text); cursor: pointer; border-radius: 50%; display: grid; place-items: center; transition: transform 100ms ease-out, background 120ms; }
+  button:hover { background: rgba(255,255,255,.09); }
+  button:active { transform: scale(.92); }
+  .sm { width: 34px; height: 34px; } .sm svg { width: 18px; height: 18px; }
+  .big { width: 42px; height: 42px; background: var(--text); color: #111; } .big:hover { background: #fff; } .big svg { width: 20px; height: 20px; }
+  .key { margin-left: auto; font-size: 11px; color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
+  .empty { color: var(--dim); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="panel" id="panel">
+  <div class="lists">
+    <h3>Playlists</h3>
+    <div class="scroll" id="lists"><div class="connect" id="connectNote">Connect Spotify from the tray icon to see your playlists here.</div></div>
+  </div>
+  <div class="now">
+    <div class="art" id="art"></div>
+    <div class="info">
+      <div class="title" id="title">Nothing playing</div>
+      <div class="artist" id="artist">Open Spotify and press play</div>
+      <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
+      <div class="times"><span id="pos">0:00</span><span class="left" id="left">-0:00</span></div>
+      <div class="controls">
+        <button class="sm" id="prev" title="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12 18 18V6z"/></svg></button>
+        <button class="big" id="play" title="Play / pause"><svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="sm" id="next" title="Skip"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+        <span class="key" id="key">F8 to hide</span>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id), panel = $('panel');
+  const PLAY = '<path d="M8 5v14l11-7z"/>', PAUSE = '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>';
+  const fmt = (s) => { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  let st = null, stAt = 0, hideTimer = null, autoHide = 8, hovering = false, raf = 0;
+
+  function render() {
+    if (!st || !st.active) { $('title').textContent = 'Nothing playing'; $('artist').textContent = 'Open Spotify and press play'; $('fill').style.width = '0'; $('pos').textContent = '0:00'; $('left').textContent = '-0:00'; return; }
+    const pos = Math.min(st.duration, st.position + (st.playing ? (performance.now() - stAt) / 1000 : 0));
+    $('fill').style.width = (st.duration ? pos / st.duration * 100 : 0) + '%';
+    $('pos').textContent = fmt(pos); $('left').textContent = '-' + fmt(st.duration - pos);
+  }
+  function loop() { render(); raf = requestAnimationFrame(loop); }   // only while visible
+  function armHide() { clearTimeout(hideTimer); if (autoHide > 0 && !hovering) hideTimer = setTimeout(() => window.overlay.hide(), autoHide * 1000); }
+
+  window.overlay.on('state', (s) => {
+    st = s; stAt = performance.now();
+    if (s.active) {
+      $('title').textContent = s.title || 'Unknown'; $('artist').textContent = s.artist || '';
+      $('playIcon').innerHTML = s.playing ? PAUSE : PLAY;
+      $('art').style.backgroundImage = s.art ? `url("${s.art}")` : 'none';
+    }
+    if (s.connected) $('connectNote').style.display = 'none';
+    render();
+  });
+  window.overlay.on('playlists', (items) => {
+    const box = $('lists'); box.innerHTML = '';
+    if (!items.length) { box.innerHTML = '<div class="connect">No playlists found.</div>'; return; }
+    for (const p of items) {
+      const row = document.createElement('div'); row.className = 'pl'; row.title = p.name;
+      const img = p.image ? Object.assign(document.createElement('img'), { src: p.image }) : Object.assign(document.createElement('div'), { className: 'ph' });
+      const name = document.createElement('span'); name.textContent = p.name;
+      row.append(img, name); row.onclick = () => { window.overlay.playPlaylist(p.uri); armHide(); };
+      box.appendChild(row);
+    }
+  });
+  window.overlay.on('show', (o) => {
+    autoHide = o.autoHide; panel.classList.remove('out'); requestAnimationFrame(() => panel.classList.add('in'));
+    cancelAnimationFrame(raf); loop(); armHide();
+  });
+  window.overlay.on('hide', () => { panel.classList.remove('in'); panel.classList.add('out'); clearTimeout(hideTimer); setTimeout(() => cancelAnimationFrame(raf), 180); });
+
+  panel.addEventListener('mouseenter', () => { hovering = true; clearTimeout(hideTimer); });
+  panel.addEventListener('mouseleave', () => { hovering = false; armHide(); });
+  $('prev').onclick = () => window.overlay.cmd('prev');
+  $('next').onclick = () => window.overlay.cmd('next');
+  $('play').onclick = () => { if (st) { st.playing = !st.playing; $('playIcon').innerHTML = st.playing ? PAUSE : PLAY; } window.overlay.cmd('toggle'); };
+  $('bar').onclick = (e) => { if (!st || !st.duration) return; const r = e.currentTarget.getBoundingClientRect(); window.overlay.seek((e.clientX - r.left) / r.width * st.duration); };
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.overlay.hide(); });
+</script>
+</body>
+</html>

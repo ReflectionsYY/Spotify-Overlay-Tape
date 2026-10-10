@@ -1,0 +1,24 @@
+{
+  "name": "spotify-overlay",
+  "productName": "Spotify Overlay",
+  "version": "1.0.0",
+  "description": "Press F8 in any game for a small Spotify overlay: song, time left, controls and your playlists.",
+  "main": "main.js",
+  "author": "Collin Chandler",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.collin.spotifyoverlay",
+    "productName": "Spotify Overlay",
+    "files": ["main.js", "preload.js", "spotify-api.js", "overlay.html", "setup.html", "media-helper.ps1", "icon.png"],
+    "extraResources": [{ "from": "media-helper.ps1", "to": "media-helper.ps1" }],
+    "win": { "target": "portable", "icon": "icon.png" }
+  }
+}
