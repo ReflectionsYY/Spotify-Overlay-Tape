@@ -147,7 +147,7 @@
       $('playIcon').innerHTML = s.playing ? PAUSE : PLAY;
       $('art').style.backgroundImage = s.art ? `url("${s.art}")` : 'none';
     }
-    if (s.connected) $('connectNote').style.display = 'none';
+    const note = $('connectNote'); if (s.connected && note) note.style.display = 'none';   // gone once playlists are listed
     render();
   });
   window.overlay.on('playlists', (items) => {
