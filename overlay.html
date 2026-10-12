@@ -167,6 +167,8 @@
   #bar { cursor: ew-resize; touch-action: none; overflow: visible; }
   #bar::before { content: ''; position: absolute; inset: -7px 0; }
   #bar .fill { border-radius: 2px; }
+  /* while dragging, the lit segments glow brighter and the leading edge shows as a bright head */
+  #bar.scrubbing .fill { box-shadow: 0 0 10px hsl(var(--hue) 100% 60% / .9), inset -3px 0 0 hsl(var(--hue) 100% 88%); filter: brightness(1.25); }
   /* THE DECK: the transport is quiet hardware under the now-playing box - Blender-modelled satin aluminium
      keys (art/buttons.py -> media/keys/) sitting flush in dark recessed slots, like a 90s deck's transport
      row. A key sinks while pressed (and holds a beat so a quick click still reads), with a soft mechanical
@@ -673,6 +675,57 @@
       thump.connect(g2).connect(c.destination); thump.start(t); thump.stop(t + 0.04);
     } catch (_) {}
   }
+  // Tape scrub: while the progress line is dragged, a synthesised tape-shuttle sound - a chattering squeal over hiss -
+  // whose pitch and loudness follow how fast you drag; dragging back (rewind) chirps higher than dragging forward.
+  // Silent while the finger is still; a soft clunk when let go. Same volume as the key clicks.
+  let scrubSnd = null;
+  function scrubSoundStart() {
+    if (sfxVol <= 0) return;
+    try {
+      if (!clickCtx) clickCtx = new AudioContext({ latencyHint: 'interactive' });
+      const c = clickCtx, t = c.currentTime;
+      const out = c.createGain(); out.gain.value = 0; out.connect(c.destination);
+      const n = c.createBuffer(1, c.sampleRate, c.sampleRate), d = n.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const hiss = c.createBufferSource(); hiss.buffer = n; hiss.loop = true;
+      const hp = c.createBiquadFilter(); hp.type = 'bandpass'; hp.frequency.value = 3000; hp.Q.value = 0.7;
+      const hg = c.createGain(); hg.gain.value = 0.35; hiss.connect(hp).connect(hg).connect(out);
+      const squeal = c.createOscillator(); squeal.type = 'sawtooth'; squeal.frequency.value = 600;
+      const sf = c.createBiquadFilter(); sf.type = 'bandpass'; sf.frequency.value = 1400; sf.Q.value = 3;
+      const chatter = c.createGain(); chatter.gain.value = 0.5;
+      const lfo = c.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 38;   // the heads chattering on the tape
+      const lfoAmt = c.createGain(); lfoAmt.gain.value = 0.45; lfo.connect(lfoAmt).connect(chatter.gain);
+      squeal.connect(sf).connect(chatter).connect(out);
+      hiss.start(t); squeal.start(t); lfo.start(t);
+      scrubSnd = { c, out, hp, squeal, sf, lfo, nodes: [hiss, squeal, lfo], lastX: null, lastT: 0, speed: 0 };
+    } catch (_) { scrubSnd = null; }
+  }
+  function scrubSoundMove(frac) {
+    const s = scrubSnd; if (!s) return;
+    const now = performance.now();
+    if (s.lastX !== null) {
+      const dt = Math.max(8, now - s.lastT) / 1000, v = (frac - s.lastX) / dt;   // fraction of the song per second
+      s.speed += (Math.min(1, Math.abs(v) / 1.2) - s.speed) * 0.5;
+      const back = v < 0, k = s.speed, t = s.c.currentTime;
+      s.out.gain.setTargetAtTime(sfxVol * 0.32 * Math.min(1, k * 1.6), t, 0.03);
+      s.squeal.frequency.setTargetAtTime((back ? 900 : 520) + k * (back ? 2600 : 1300), t, 0.04);
+      s.sf.frequency.setTargetAtTime((back ? 1800 : 1100) + k * 2600, t, 0.04);
+      s.lfo.frequency.setTargetAtTime(20 + k * 70, t, 0.05);
+      s.hp.frequency.setTargetAtTime(2200 + k * 4000, t, 0.05);
+      clearTimeout(s.idle);
+      s.idle = setTimeout(() => { if (scrubSnd === s) { s.speed = 0; s.out.gain.setTargetAtTime(0, s.c.currentTime, 0.04); } }, 70);   // finger stopped
+    }
+    s.lastX = frac; s.lastT = now;
+  }
+  function scrubSoundStop() {
+    const s = scrubSnd; scrubSnd = null; if (!s) return;
+    clearTimeout(s.idle);
+    const t = s.c.currentTime; s.out.gain.setTargetAtTime(0, t, 0.025);
+    for (const n of s.nodes) try { n.stop(t + 0.15); } catch (_) {}
+    setTimeout(() => s.out.disconnect(), 300);
+    keyClick(false);                                                 // the transport settling
+  }
+
   for (const k of document.querySelectorAll('button.hw')) {
     let downAt = 0;
     k.addEventListener('pointerdown', () => { downAt = performance.now(); k.classList.add('held'); keyClick(true); });
@@ -687,11 +740,11 @@
   // The progress line scrubs like the volume bars: press and drag, the fill and the counter follow the finger, and the
   // song jumps there on release. The shown position holds at the target until Spotify reports it, so it doesn't flick back.
   function barFrac(x) { const r = $('bar').getBoundingClientRect(); return Math.max(0, Math.min(1, (x - r.left) / r.width)); }
-  $('bar').addEventListener('pointerdown', (e) => { if (!st || !st.duration) return; scrub = barFrac(e.clientX); $('bar').setPointerCapture(e.pointerId); $('bar').classList.add('scrubbing'); render(); });
-  $('bar').addEventListener('pointermove', (e) => { if (scrub === null) return; scrub = barFrac(e.clientX); render(); });
+  $('bar').addEventListener('pointerdown', (e) => { if (!st || !st.duration) return; scrub = barFrac(e.clientX); $('bar').setPointerCapture(e.pointerId); $('bar').classList.add('scrubbing'); scrubSoundStart(); scrubSoundMove(scrub); render(); });
+  $('bar').addEventListener('pointermove', (e) => { if (scrub === null) return; scrub = barFrac(e.clientX); scrubSoundMove(scrub); render(); });
   function endScrub() {
     if (scrub === null) return;
-    const target = scrub * st.duration; scrub = null; $('bar').classList.remove('scrubbing');
+    const target = scrub * st.duration; scrub = null; $('bar').classList.remove('scrubbing'); scrubSoundStop();
     window.overlay.seek(target);
     st = Object.assign({}, st, { position: target }); stAt = performance.now(); seekHold = { target, until: Date.now() + 2500 };
     render();
