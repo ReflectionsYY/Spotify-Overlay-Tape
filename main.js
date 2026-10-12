@@ -45,14 +45,42 @@ function startHelper() {
 }
 function write(cmd) { try { if (helper) helper.stdin.write(cmd + '\n'); } catch (_) {} }
 function stopHelper() { if (helper && !cornerWin) { write('quit'); setTimeout(() => { if (helper && !cornerWin) helper.kill(); }, 1500); } }
-function send(cmd) { startHelper(); write(cmd); setTimeout(() => write('state'), 450); }
+// a command, then quick re-reads so a skip / play shows within a fraction of a second, not on the next poll
+function send(cmd) { startHelper(); write(cmd); for (const ms of [120, 350, 800]) setTimeout(() => write('state'), ms); }
 const needMeter = () => visible || !!cornerWin;
 
+/* ALBUM ART, FAST AND RIGHT. Windows (GSMTC) knows the new song instantly but carries no art we can use, and
+   the Web API lags the app by up to a second after a change - asked too early it returns the PREVIOUS song.
+   So art is remembered per song title (artMemo), filled from three places: songs clicked in the overlay
+   (their art is already in the list), the queue (prefetched after every change, so a skip is instant),
+   and currently-playing - which is only trusted once its track name matches what Windows reports,
+   retried a few times while the API catches up. */
+const artMemo = new Map();
+const artKey = (title) => String(title || '').trim().toLowerCase();
+function rememberArt(title, url) {
+  if (!title || !url) return;
+  artMemo.set(artKey(title), url);
+  if (artMemo.size > 400) artMemo.delete(artMemo.keys().next().value);
+  if (win) win.webContents.send('preload-art', url);         // warm the image cache before it is needed
+}
+async function fetchArt(key, title) {
+  for (let i = 0; i < 8 && artCache.key === key; i++) {
+    let r = null; try { r = await spotify.nowPlayingArt(); } catch (_) {}
+    if (r && r.url && artKey(r.name) === artKey(title)) { rememberArt(title, r.url); if (artCache.key === key) { artCache.url = r.url; push(); } break; }
+    await new Promise((res) => setTimeout(res, 350));
+  }
+  if (artCache.key === key) spotify.queueArt().then((q) => q.forEach((t) => rememberArt(t.name, t.url))).catch(() => {});
+}
 async function onState(s) {
   lastState = s;
   if (s.active && spotify.connected) {
     const key = s.title + '|' + s.artist;
-    if (artCache.key !== key) { artCache = { key, url: '' }; spotify.nowPlayingArt().then((url) => { if (artCache.key === key) { artCache.url = url; push(); } }).catch(() => {}); }
+    if (artCache.key !== key) {
+      const known = artMemo.get(artKey(s.title)) || '';
+      artCache = { key, url: known };
+      if (known) spotify.queueArt().then((q) => q.forEach((t) => rememberArt(t.name, t.url))).catch(() => {});
+      else fetchArt(key, s.title);
+    }
   }
   push();
 }
@@ -81,7 +109,7 @@ function place() {
 function show() {
   if (!win) return;
   clearTimeout(stopTimer); place(); startHelper();
-  clearInterval(pollTimer); pollTimer = setInterval(() => write('state'), 1000);
+  clearInterval(pollTimer); pollTimer = setInterval(() => write('state'), 300);   // only while shown
   visible = true; win.showInactive();             // don't steal focus from the game
   write('meter on'); write('vol get');
   win.setAlwaysOnTop(true, 'screen-saver');
@@ -237,6 +265,8 @@ ipcMain.on('seek', (_e, s) => { if (Number.isFinite(s) && s >= 0) send('seek ' +
 ipcMain.on('volume', (_e, v) => { if (Number.isFinite(v)) { startHelper(); write('vol ' + Math.max(0, Math.min(1, v)).toFixed(3)); volume = v; } });
 ipcMain.on('hide', hide);
 ipcMain.on('focus', () => { if (win && visible) win.focus(); });   // only for typing in the search box
+// a song clicked in the overlay: its art is already known, so the box can show it the moment the song changes
+ipcMain.on('art-hint', (_e, title, url) => { if (typeof title === 'string' && /^https:\/\/[a-z0-9.-]+\.(scdn\.co|spotifycdn\.com)\//i.test(url || '')) rememberArt(title, url); });
 ipcMain.on('settings', openSettings);
 const LIST_URI = /^spotify:(playlist:[A-Za-z0-9]+|collection:tracks)$/, PLAY_URI = /^spotify:(playlist:[A-Za-z0-9]+|collection:tracks|artist:[A-Za-z0-9]+)$/;
 ipcMain.handle('artist-top', async (_e, name) => {

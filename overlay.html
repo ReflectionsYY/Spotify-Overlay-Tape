@@ -50,7 +50,8 @@
 
   .now { flex: 1; display: flex; align-items: stretch; gap: 14px; padding: 10px 16px 10px 12px; min-width: 0; }
   /* the art is as tall as everything beside it (title box down to the controls) and stays square */
-  .art { height: auto; aspect-ratio: 1 / 1; border-radius: 10px; flex: none; align-self: stretch; background: #22252a center/cover no-repeat; }
+  .art { height: auto; aspect-ratio: 1 / 1; border-radius: 10px; flex: none; align-self: stretch; background: #22252a center/cover no-repeat; transition: opacity 160ms ease-out; }
+  .art.waiting { opacity: .45; }   /* the song changed and its cover is still on the way - dim the old one rather than show a wrong one */
   .info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
   /* the now-playing box: title + artist over a little window of the Windows 98 starfield */
   /* the frame is a Blender-modelled gunmetal bezel (art/frame.py -> media/frame.png), 9-sliced so it
@@ -281,11 +282,13 @@
   // ---------------------------------------------------------------- data from the app
   window.overlay.on('state', (s) => {
     st = s; stAt = performance.now();
-    if (s.active) {
+    if (pickedHold && (s.title === pickedHold.title || Date.now() > pickedHold.until)) pickedHold = null;
+    if (s.active && !pickedHold) {   // while a just-clicked song is starting, keep showing it instead of flicking back
       setTitle(s.title || 'Unknown'); if (!voiceText) $('artist').textContent = s.artist || '';
-      $('playIcon').innerHTML = s.playing ? PAUSE : PLAY;
-      $('art').style.backgroundImage = s.art ? `url("${s.art}")` : 'none';
+      if (s.art) { if (s.art !== shownArt) { shownArt = s.art; $('art').style.backgroundImage = `url("${s.art}")`; } $('art').classList.remove('waiting'); }
+      else $('art').classList.toggle('waiting', !!shownArt);
     }
+    if (s.active) $('playIcon').innerHTML = s.playing ? PAUSE : PLAY;
     const note = $('connectNote'); if (s.connected && note) note.style.display = 'none';   // gone once playlists are listed
     document.body.classList.toggle('no-api', !s.connected);
     const canBrowse = !!(s.connected && s.active && s.artist && !voiceText && !document.body.classList.contains('no-lists'));
@@ -306,7 +309,7 @@
     closeSearch(false);
     document.body.classList.add('browsing');
     $('listName').textContent = p.name; $('listName').title = p.name;
-    showSongs({ uri: p.uri, fetch: (o) => window.overlay.tracks(p.uri, o), play: (t) => window.overlay.playPlaylist(p.uri, t.pos), empty: "Couldn't load this playlist." });
+    showSongs({ uri: p.uri, fetch: (o) => cachedTracks(p.uri, o), play: (t) => window.overlay.playPlaylist(p.uri, t.pos), empty: "Couldn't load this playlist." });
   }
   function closeList() {
     view = null; document.body.classList.remove('browsing', 'searching');
@@ -327,7 +330,7 @@
     for (const t of r.items) {
       const row = document.createElement('div'); row.className = 'tr'; row.title = t.name + ' - ' + t.artist; row.dataset.name = t.name;
       const b = document.createElement('b'), i = document.createElement('i'); b.textContent = t.name; i.textContent = t.artist;
-      row.append(b, i); row.onclick = () => { v.play(t); armHide(); };
+      row.append(b, i); row.onclick = () => { showPicked(t, row); v.play(t); armHide(); };
       box.appendChild(row);
     }
     markCurrent();
@@ -337,6 +340,29 @@
   $('tracks').addEventListener('scroll', (e) => { const b = e.currentTarget; if (b.scrollTop + b.clientHeight > b.scrollHeight - 120) loadMore(); });
   $('back').onclick = closeList;
   $('lplay').onclick = () => { if (view && view.uri) { window.overlay.playPlaylist(view.uri); armHide(); } };
+
+  // ---------------------------------------------------------------- responsiveness
+  // A clicked song shows in the box at once (name, artist, cover from the list) instead of after Spotify
+  // confirms it; the real state that follows carries the same values. Opened playlists are remembered
+  // for 5 minutes so going back into one is instant. Covers the app prefetches are warmed here.
+  let shownArt = '', pickedHold = null;
+  function showPicked(t, row) {
+    pickedHold = { title: t.name, until: Date.now() + 2500 };
+    setTitle(t.name);
+    if (!voiceText) $('artist').textContent = t.artist;
+    if (t.img) { shownArt = t.img; $('art').style.backgroundImage = `url("${t.img}")`; $('art').classList.remove('waiting'); window.overlay.artHint(t.name, t.img); }
+    for (const r of $('tracks').children) r.classList.toggle('cur', r === row);
+  }
+  const trackPages = new Map();   // "uri|offset" -> { at, page }
+  async function cachedTracks(uri, offset) {
+    const k = uri + '|' + offset, hit = trackPages.get(k);
+    if (hit && Date.now() - hit.at < 5 * 60000) return hit.page;
+    const page = await window.overlay.tracks(uri, offset);
+    if (!page.error) trackPages.set(k, { at: Date.now(), page });
+    return page;
+  }
+  const warmed = [];
+  window.overlay.on('preload-art', (url) => { const im = new Image(); im.src = url; warmed.push(im); if (warmed.length > 12) warmed.shift(); });
 
   // ---------------------------------------------------------------- artist top songs (click the artist name in the box)
   // Opens the artist's top songs in the list panel; the back arrow returns to the playlists, the green

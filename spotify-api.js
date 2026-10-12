@@ -8,6 +8,9 @@ const REDIRECT_PORT = 8888, REDIRECT = `http://127.0.0.1:${REDIRECT_PORT}/callba
 const LIKED = 'spotify:collection:tracks';
 const SCOPES = 'user-library-read playlist-read-private playlist-read-collaborative user-read-currently-playing user-read-playback-state user-modify-playback-state';
 
+// the ~300 px album image (Spotify lists 640 / 300 / 64)
+const artOf = (t) => { const imgs = (t && t.album && t.album.images) || []; return imgs.length ? imgs[Math.min(1, imgs.length - 1)].url : ''; };
+
 function create(dataDir) {
   const tokenFile = path.join(dataDir, 'spotify-token.bin');
   let token = null, loaded = false;   // token: { access, refresh, expires, clientId }
@@ -82,9 +85,16 @@ function create(dataDir) {
       }
       return out;
     },
+    // The playing track's name + album art. The Web API lags the desktop app by up to a second after a
+    // change, so the caller checks `name` against what Windows reports before trusting the art.
     async nowPlayingArt() {
-      const r = await api('GET', '/me/player/currently-playing'); if (r.status !== 200 || !r.json || !r.json.item) return '';
-      const imgs = (r.json.item.album && r.json.item.album.images) || []; return imgs.length ? imgs[Math.min(1, imgs.length - 1)].url : '';
+      const r = await api('GET', '/me/player/currently-playing'); if (r.status !== 200 || !r.json || !r.json.item) return null;
+      return { name: r.json.item.name, url: artOf(r.json.item) };
+    },
+    // The next few queued songs with their art, so a skip can show the cover instantly.
+    async queueArt() {
+      const r = await api('GET', '/me/player/queue'); if (r.status !== 200 || !r.json) return [];
+      return (r.json.queue || []).filter(Boolean).slice(0, 3).map((t) => ({ name: t.name, url: artOf(t) })).filter((x) => x.url);
     },
     // One page (50) of a playlist's songs for the browse view. Playlists use the newer /items endpoint (/tracks is 403 now).
     // pos is the song's place in the list (skipped rows included), which is what "play from here" needs.
@@ -94,7 +104,7 @@ function create(dataDir) {
       if (r.status !== 200 || !r.json) return { items: [], next: null, error: liked && r.status === 403 ? 'reconnect' : 'failed' };
       const items = (r.json.items || []).map((x, i) => {
         const t = x && (x.item || x.track); if (!t || !t.uri) return null;
-        return { pos: offset + i, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', ') };
+        return { pos: offset + i, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', '), img: artOf(t) };
       }).filter(Boolean);
       return { items, next: r.json.next ? offset + 50 : null, total: r.json.total };
     },
@@ -102,7 +112,7 @@ function create(dataDir) {
     async search(query, offset) {
       const r = await api('GET', '/search?' + new URLSearchParams({ q: query, type: 'track', limit: '10', offset: String(offset) }));
       if (r.status !== 200 || !r.json || !r.json.tracks) return { items: [], next: null, error: 'failed' };
-      const items = (r.json.tracks.items || []).filter((t) => t && t.uri).map((t) => ({ uri: t.uri, album: t.album && t.album.uri, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', ') }));
+      const items = (r.json.tracks.items || []).filter((t) => t && t.uri).map((t) => ({ uri: t.uri, album: t.album && t.album.uri, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', '), img: artOf(t) }));
       return { items, next: r.json.tracks.next && offset + 10 < 200 ? offset + 10 : null };
     },
     // An artist's top songs for the browse view, from the artist name shown in the overlay. The artist
@@ -120,7 +130,7 @@ function create(dataDir) {
         if (!a) return { items: [], next: null, error: 'failed' };
         id = a.id; label = a.name;
       }
-      const map = (t) => ({ uri: t.uri, album: t.album && t.album.uri, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', ') });
+      const map = (t) => ({ uri: t.uri, album: t.album && t.album.uri, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', '), img: artOf(t) });
       const top = await api('GET', `/artists/${id}/top-tracks?market=US`);
       let items = top.status === 200 && top.json && top.json.tracks ? top.json.tracks.filter(Boolean).map(map) : null;
       if (!items || !items.length) {
