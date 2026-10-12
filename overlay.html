@@ -67,19 +67,23 @@
   .pl .liked { background: linear-gradient(135deg, hsl(var(--hue) 75% 32%), hsl(calc(var(--hue) + 40) 90% 66%)); display: grid; place-items: center; }
   .pl .liked svg { width: 14px; height: 14px; fill: #fff; }
   .pl span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lfoot { flex: none; height: 18px; margin: 0 8px 6px; padding: 0 7px; border-radius: 3px; background: #050608; display: flex; align-items: center; justify-content: flex-end;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.04);
+    font: 400 8px/1 'DSEG14', Consolas, monospace; letter-spacing: .05em; color: hsl(var(--hue) 100% 76%); text-shadow: 0 0 4px hsl(var(--hue) 100% 58% / .7); }
+  .lfoot:empty { visibility: hidden; }
   .connect { margin: 8px 10px; font-size: 12px; color: var(--dim); line-height: 1.4; }
 
-  .now { flex: 1; display: flex; align-items: stretch; gap: 14px; padding: 10px 16px 10px 12px; min-width: 0; }
+  .now { flex: 1; display: flex; align-items: stretch; gap: 16px; padding: 12px 14px; min-width: 0; }
   /* the art is as tall as everything beside it (title box down to the controls) and stays square */
   .art { height: auto; aspect-ratio: 1 / 1; border-radius: 10px; flex: none; align-self: stretch; background: #22252a center/cover no-repeat; transition: opacity 160ms ease-out; }
   /* the cover is set into the hardware: a dark recessed rim like the key slots, and a faint jewel-case glare */
-  .art { position: relative; overflow: hidden; border-radius: 6px; margin: 3px;
+  .art { position: relative; overflow: hidden; border-radius: 6px; margin: 0;
     box-shadow: 0 0 0 3px #050608, 0 0 0 4px rgba(0,0,0,.8), 0 1px 0 4px rgba(255,255,255,.05); }
   .art::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
     background: linear-gradient(118deg, rgba(255,255,255,.13) 0%, rgba(255,255,255,.03) 32%, transparent 33%, transparent 100%); }
   .art .iris { position: absolute; inset: 0; background: center / cover no-repeat; }
   .art.waiting { opacity: .45; }   /* the song changed and its cover is still on the way - dim the old one rather than show a wrong one */
-  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
+  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 3px; }
   /* the now-playing box: title + artist over a little window of the Windows 98 starfield */
   /* the frame is a Blender-modelled gunmetal bezel (art/frame.py -> media/frame.png), 9-sliced so it
      fits any width: 48 px corners in the 2x image = 24 CSS px, the plain rim stretches between them */
@@ -129,14 +133,14 @@
   .title.marquee span { display: inline-block; animation: marquee var(--dur, 10s) ease-in-out infinite alternate; }
   @keyframes marquee { 0%, 12% { transform: translateX(0); } 88%, 100% { transform: translateX(var(--shift, 0px)); } }
   /* the waveform runs on a small recessed oscilloscope screen with a faint graticule */
-  #wave { width: 100%; height: 20px; display: block; border-radius: 4px; background-color: #050608;
+  #wave { width: 100%; height: 17px; display: block; border-radius: 4px; background-color: #050608;
     background-image: linear-gradient(hsl(var(--hue) 60% 60% / .07) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--hue) 60% 60% / .07) 1px, transparent 1px);
     background-size: 100% 5px, 12px 100%; background-position: 0 2px, 0 0; box-shadow: inset 0 2px 4px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.05); }
   /* THE TAPE: a line-art VHS cassette in the clock's glowing LED style (no fill, no backdrop) whose reels
      turn while the music plays - and the tape really winds across: the left pack shrinks and the right
      grows with the song, the smaller reel spinning faster. Beside it, a thick segmented LED line for
      the song's progress (click to jump), and the time left in 7-segment digits like a VCR counter. */
-  .tape { display: flex; align-items: center; gap: 9px; height: 38px; }
+  .tape { display: flex; align-items: center; gap: 9px; height: 32px; }
   .vhs { flex: none; overflow: visible; }
   /* flat thin-line OP-1 look: white hubs and head, tape and packs in the globe's colour */
   .vhs .shell { fill: none; stroke: rgba(255,255,255,.62); stroke-width: .8; stroke-linejoin: round; }
@@ -164,8 +168,12 @@
      row. A key sinks while pressed (and holds a beat so a quick click still reads), with a soft mechanical
      click; play and shuffle LATCH down while playing / on, the way real deck keys stay in. */
   .deck { display: flex; align-items: center; justify-content: center; gap: 8px; }
-  .slot { display: flex; padding: 3px; border-radius: 6px; background: #050608;
+  .slot { display: flex; padding: 3px 3px 11px; border-radius: 6px; background: #050608;
     box-shadow: inset 0 2px 5px rgba(0,0,0,.9), inset 0 0 0 1px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.055); }
+  /* silkscreen: each key's name printed on the slot below it, like a real deck */
+  button.hw::after { content: attr(data-label); position: absolute; left: 0; right: 0; top: calc(100% + 1px); text-align: center; pointer-events: none;
+    font: 700 6.5px/9px Consolas, "Courier New", monospace; letter-spacing: .14em; color: rgba(205,210,220,.42); }
+  button.hw:hover::after { color: hsl(var(--hue) 100% 78%); text-shadow: 0 0 4px hsl(var(--hue) 100% 60% / .7); }
   button.hw { position: relative; width: 50px; height: 31px; border-radius: 3px; flex: none;
     background: var(--up) center / 100% 100% no-repeat, var(--down) 0 0 / 0 0 no-repeat;   /* 2nd layer preloads the pressed image */
     transition: none; }
@@ -193,6 +201,23 @@
   .viz .stars { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .75; pointer-events: none;
     -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent 100%); mask-image: radial-gradient(closest-side, #000 55%, transparent 100%); }
   #globe { position: relative; width: 166px; height: 166px; display: block; }
+  /* the globe sits in an instrument: a scope bezel (dark ring, minute ticks, cardinal marks) behind it,
+     two screws in the top corners and two status LEDs with silkscreen labels in the bottom ones */
+  .scope { position: absolute; left: 50%; top: 50%; width: 172px; height: 172px; margin: -86px 0 0 -86px; pointer-events: none; overflow: visible; }
+  .scope .ring { fill: none; stroke: rgba(0,0,0,.75); stroke-width: 5; }
+  .scope .ring-hi { fill: none; stroke: rgba(255,255,255,.07); stroke-width: .8; }
+  .scope .tick { stroke: hsl(var(--hue) 70% 70% / .32); stroke-width: .8; }
+  .scope .tick.major { stroke: hsl(var(--hue) 100% 76% / .7); stroke-width: 1.2; filter: drop-shadow(0 0 1.5px hsl(var(--hue) 100% 60% / .8)); }
+  .viz .screw { position: absolute; top: 7px; width: 7px; height: 7px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle at 35% 30%, #a7abb2, #555960 55%, #1b1d21); box-shadow: 0 0 0 1px rgba(0,0,0,.7), 0 1px 0 1px rgba(255,255,255,.05); }
+  .viz .screw::after { content: ''; position: absolute; left: 1px; right: 1px; top: 3px; height: 1px; background: rgba(0,0,0,.75); transform: rotate(-35deg); }
+  .viz .screw.l { left: 7px; } .viz .screw.r { right: 7px; } .viz .screw.r::after { transform: rotate(50deg); }
+  .viz .stat { position: absolute; bottom: 6px; display: flex; align-items: center; gap: 4px; pointer-events: none;
+    font: 700 6.5px/1 Consolas, "Courier New", monospace; letter-spacing: .14em; color: rgba(205,210,220,.4); }
+  .viz .stat.l { left: 8px; } .viz .stat.r { right: 8px; flex-direction: row-reverse; }
+  .viz .stat i { width: 5px; height: 5px; border-radius: 50%; background: rgba(0,0,0,.6); box-shadow: inset 0 1px 1px rgba(0,0,0,.7); }
+  .viz .stat.on i { background: hsl(var(--hue) 100% 64%); box-shadow: 0 0 5px hsl(var(--hue) 100% 60%), 0 0 1px #fff; }
+  .viz .stat.link.on i { background: #4dff7a; box-shadow: 0 0 5px #4dff7a, 0 0 1px #fff; }
   /* 90s alarm-clock time: red 7-segment LEDs (drawn as SVG, unlit segments ghosted) */
   .seg { display: flex; gap: 2px; align-items: flex-end; }
   .seg svg { display: block; overflow: visible; }
@@ -217,6 +242,7 @@
     </div>
     <div class="scroll" id="lists"><div class="connect" id="connectNote">Connect Spotify in Settings (gear button) to see your playlists here.</div></div>
     <div class="scroll" id="tracks" hidden></div>
+    <div class="lfoot" id="lfoot"></div>
   </div>
   <div class="now">
     <div class="art" id="art"></div>
@@ -232,7 +258,7 @@
       </div>
       <canvas id="wave"></canvas>
       <div class="tape" id="tape">
-        <svg class="vhs" viewBox="0 0 84 30" width="106" height="38" aria-hidden="true">
+        <svg class="vhs" viewBox="0 0 84 30" width="90" height="32" aria-hidden="true">
           <!-- OP-1 style cassette: the shell outline (window between the reels, the angled tape slot along
                the bottom edge, corner screws), two reels, and the tape running off the bottom of each pack,
                round two guide rollers and across the head -->
@@ -254,19 +280,24 @@
       </div>
       <div class="deck" id="deck">
         <div class="slot">
-          <button class="hw shuf" id="shuf" title="Shuffle" style="--up:url(media/keys/shuffle.png);--down:url(media/keys/shuffle-down.png)"><span class="led"></span></button>
-          <button class="hw" id="prev" title="Previous" style="--up:url(media/keys/prev.png);--down:url(media/keys/prev-down.png)"></button>
-          <button class="hw" id="play" title="Play / pause" style="--up:url(media/keys/playpause.png);--down:url(media/keys/playpause-down.png)"><span class="led"></span></button>
-          <button class="hw" id="next" title="Skip" style="--up:url(media/keys/next.png);--down:url(media/keys/next-down.png)"></button>
+          <button class="hw shuf" id="shuf" data-label="SHUF" title="Shuffle" style="--up:url(media/keys/shuffle.png);--down:url(media/keys/shuffle-down.png)"><span class="led"></span></button>
+          <button class="hw" id="prev" data-label="REW" title="Previous" style="--up:url(media/keys/prev.png);--down:url(media/keys/prev-down.png)"></button>
+          <button class="hw" id="play" data-label="PLAY" title="Play / pause" style="--up:url(media/keys/playpause.png);--down:url(media/keys/playpause-down.png)"><span class="led"></span></button>
+          <button class="hw" id="next" data-label="FF" title="Skip" style="--up:url(media/keys/next.png);--down:url(media/keys/next-down.png)"></button>
         </div>
         <div class="slot">
-          <button class="hw mic" id="mic" title="Hey Claude: click, say what to play, click again (or wait)" style="--up:url(media/keys/mic.png);--down:url(media/keys/mic-down.png)"><span class="led"></span></button>
-          <button class="hw" id="gear" title="Settings" style="--up:url(media/keys/gear.png);--down:url(media/keys/gear-down.png)"></button>
+          <button class="hw mic" id="mic" data-label="VOICE" title="Hey Claude: click, say what to play, click again (or wait)" style="--up:url(media/keys/mic.png);--down:url(media/keys/mic-down.png)"><span class="led"></span></button>
+          <button class="hw" id="gear" data-label="SET" title="Settings" style="--up:url(media/keys/gear.png);--down:url(media/keys/gear-down.png)"></button>
         </div>
       </div>
     </div>
   </div>
-  <div class="viz"><video class="stars" id="starsViz" src="media/stars-globe.mp4" muted loop playsinline preload="auto"></video><canvas id="globe"></canvas></div>
+  <div class="viz"><video class="stars" id="starsViz" src="media/stars-globe.mp4" muted loop playsinline preload="auto"></video>
+    <svg class="scope" id="scope" viewBox="-86 -86 172 172" aria-hidden="true"></svg>
+    <canvas id="globe"></canvas>
+    <span class="screw l"></span><span class="screw r"></span>
+    <span class="stat l on" id="statPwr"><i></i>PWR</span><span class="stat r link" id="statLink"><i></i>LINK</span>
+  </div>
 </div>
 <script src="globe.js"></script>
 <script>
@@ -331,6 +362,17 @@
     lastDraw = t; react.step(); globe.draw(t); drawWave(); starsTick(t);
   }
 
+  // ---------------------------------------------------------------- the scope bezel round the globe
+  // 60 minute ticks between r 78 and 82, longer lit ticks every 15 (the cardinal marks), over a dark ring
+  (() => {
+    let svg = '<circle class="ring" r="83"/><circle class="ring-hi" r="85.6"/><circle class="ring-hi" r="80.4"/>';
+    for (let k = 0; k < 60; k++) {
+      const a = k * Math.PI / 30, major = k % 15 === 0, r0 = major ? 76 : 79, r1 = 82.5;
+      svg += `<line class="tick${major ? ' major' : ''}" x1="${(Math.sin(a) * r0).toFixed(2)}" y1="${(-Math.cos(a) * r0).toFixed(2)}" x2="${(Math.sin(a) * r1).toFixed(2)}" y2="${(-Math.cos(a) * r1).toFixed(2)}"/>`;
+    }
+    $('scope').innerHTML = svg;
+  })();
+
   // ---------------------------------------------------------------- starfield (Windows 98 screensaver loops)
   // Two tiny seamless 24 s loops (media/), playing only while the overlay is shown. They react to the
   // music: loud passages push the stars toward warp speed, and they take on a light tint of the globe's
@@ -387,6 +429,7 @@
     if (s.active) setPlayKey(s.playing);
     const note = $('connectNote'); if (s.connected && note) note.style.display = 'none';   // gone once playlists are listed
     document.body.classList.toggle('no-api', !s.connected);
+    $('statLink').classList.toggle('on', !!s.connected);   // LINK lit while Spotify's account link is up
     const canBrowse = !!(s.connected && s.active && s.artist && !voiceText && !document.body.classList.contains('no-lists'));
     $('artist').classList.toggle('link', canBrowse); $('artist').title = canBrowse ? 'Show ' + s.artist + "'s top songs" : '';
     if (s.title !== lastTitle) { lastTitle = s.title; markCurrent(); }
@@ -411,13 +454,14 @@
     view = null; document.body.classList.remove('browsing', 'searching');
     $('listName').textContent = 'Playlists'; $('listName').title = '';
     $('tracks').hidden = true; $('tracks').innerHTML = ''; $('lists').hidden = false;
+    footer();
   }
   async function loadMore() {
     const v = view; if (!v || v.loading || v.next === null) return;
     v.loading = true;
     const r = await v.fetch(v.next);
     if (view !== v) return;                   // went back / opened another list / typed a new search meanwhile
-    v.loading = false; v.next = r.next;
+    v.loading = false; v.next = r.next; if (r.total) v.total = r.total;
     const box = $('tracks');
     if ((r.error || !r.items.length) && !box.children.length) {
       box.innerHTML = `<div class="connect">${r.error === 'reconnect' ? 'Reconnect Spotify in Settings (gear button) once to browse Liked Songs.' : r.error ? v.empty : 'No songs found.'}</div>`;
@@ -432,7 +476,16 @@
     markCurrent();
     if (box.scrollHeight <= box.clientHeight + 60) loadMore();   // keep filling until the list can scroll
   }
-  function markCurrent() { for (const row of $('tracks').children) row.classList.toggle('cur', !!st && st.active && row.dataset.name === st.title); }
+  function markCurrent() { for (const row of $('tracks').children) row.classList.toggle('cur', !!st && st.active && row.dataset.name === st.title); footer(); }
+  // the panel's LCD counter, like a deck's track readout: TRK 03 / 44 in a list, the playlist count otherwise
+  let playlistCount = 0;
+  function footer() {
+    const pad = (n) => String(n).padStart(2, '0');
+    if (!view) { $('lfoot').textContent = playlistCount ? pad(playlistCount) + ' LISTS' : ''; return; }
+    const rows = [...$('tracks').querySelectorAll('.tr')], cur = rows.findIndex((r) => r.classList.contains('cur'));
+    const total = view.total || rows.length;
+    $('lfoot').textContent = rows.length ? 'TRK ' + (cur >= 0 ? pad(cur + 1) : '--') + ' / ' + pad(total) : '';
+  }
   $('tracks').addEventListener('scroll', (e) => { const b = e.currentTarget; if (b.scrollTop + b.clientHeight > b.scrollHeight - 120) loadMore(); });
   $('back').onclick = closeList;
   $('lplay').onclick = () => { if (view && view.uri) { window.overlay.playPlaylist(view.uri); armHide(); } };
@@ -527,6 +580,7 @@
   window.overlay.on('shuffle', setShuf);
   $('shuf').onclick = async () => { const want = !shuffleOn; setShuf(want); if ((await window.overlay.shuffle(want)) === null) setShuf(!want); };
   window.overlay.on('playlists', (items) => {
+    playlistCount = items.length; footer();
     const box = $('lists'); box.innerHTML = '';
     if (!items.length) { box.innerHTML = '<div class="connect">No playlists found.</div>'; return; }
     for (const p of items) {
