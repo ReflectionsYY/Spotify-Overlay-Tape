@@ -187,7 +187,12 @@
   .shuf.on .led, #play.latched .led { background: hsl(var(--hue) 100% 64%); box-shadow: 0 0 4px hsl(var(--hue) 100% 60%), 0 0 1px #fff; }
   .mic.rec .led { background: #ff4b3a; box-shadow: 0 0 5px #ff4b3a; animation: pulse 1s ease-in-out infinite; }
   .mic.busy .led { background: hsl(var(--hue) 100% 64%); box-shadow: 0 0 4px hsl(var(--hue) 100% 60%); }
-  .no-api .shuf { display: none; }
+  .no-api .shuf, .no-api .like { display: none; }
+  .like.on .led { background: hsl(var(--hue) 100% 64%); box-shadow: 0 0 4px hsl(var(--hue) 100% 60%), 0 0 1px #fff; }
+  /* liked: the printed heart lights up in the accent, so it's obvious at a glance */
+  .like .lit-heart { position: absolute; left: 50%; top: 50%; width: 11px; height: 11px; margin: -5px 0 0 -5.5px; opacity: 0; transition: opacity 160ms; pointer-events: none; overflow: visible; }
+  .like .lit-heart path { fill: hsl(var(--hue) 100% 66%); filter: drop-shadow(0 0 3px hsl(var(--hue) 100% 58%)) drop-shadow(0 0 1px #fff); }
+  .like.on .lit-heart { opacity: 1; }
   .meter { cursor: ew-resize; touch-action: none; }   /* drag (or scroll) on the bars to change the volume */
   button { background: none; border: none; color: var(--text); cursor: pointer; border-radius: 50%; display: grid; place-items: center; transition: transform 100ms ease-out, background 120ms; }
   button:hover { background: rgba(255,255,255,.09); }
@@ -237,7 +242,7 @@
       <button class="back" id="back" title="Back to playlists"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4-4.6-4.6z"/></svg></button>
       <h3 id="listName">Playlists</h3>
       <input id="q" type="search" placeholder="Search songs" spellcheck="false" autocomplete="off">
-      <button class="find" id="find" title="Search songs"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.8l-.3-.3A6.5 6.5 0 1 0 14 15.5l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg></button>
+      <button class="find" id="find" title="Search songs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="10" cy="10" r="6" stroke-width="2"/><path d="M7.2 8.6a3 3 0 0 1 2.2-2.2" stroke-width="1.4" opacity=".75"/><path d="M14.6 14.6l5.6 5.6" stroke-width="3"/></svg></button>
       <button class="lplay" id="lplay" title="Play this playlist"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
     </div>
     <div class="scroll" id="lists"><div class="connect" id="connectNote">Connect Spotify in Settings (gear button) to see your playlists here.</div></div>
@@ -286,6 +291,7 @@
           <button class="hw" id="next" data-label="FF" title="Skip" style="--up:url(media/keys/next.png);--down:url(media/keys/next-down.png)"></button>
         </div>
         <div class="slot">
+          <button class="hw like" id="like" data-label="LIKE" title="Like / unlike this song" style="--up:url(media/keys/heart.png);--down:url(media/keys/heart-down.png)"><span class="led"></span><svg class="lit-heart" viewBox="-17 -17 34 34" aria-hidden="true"><path d="M0 12C-4 8-14 2-14-6c0-5 4-8 8-8 3 0 5 2 6 4 1-2 3-4 6-4 4 0 8 3 8 8 0 8-10 14-14 18z"/></svg></button>
           <button class="hw mic" id="mic" data-label="VOICE" title="Hey Claude: click, say what to play, click again (or wait)" style="--up:url(media/keys/mic.png);--down:url(media/keys/mic-down.png)"><span class="led"></span></button>
           <button class="hw" id="gear" data-label="SET" title="Settings" style="--up:url(media/keys/gear.png);--down:url(media/keys/gear-down.png)"></button>
         </div>
@@ -432,7 +438,9 @@
     $('statLink').classList.toggle('on', !!s.connected);   // LINK lit while Spotify's account link is up
     const canBrowse = !!(s.connected && s.active && s.artist && !voiceText && !document.body.classList.contains('no-lists'));
     $('artist').classList.toggle('link', canBrowse); $('artist').title = canBrowse ? 'Show ' + s.artist + "'s top songs" : '';
-    if (s.title !== lastTitle) { lastTitle = s.title; markCurrent(); }
+    if (s.title !== lastTitle) { lastTitle = s.title; markCurrent(); clearTimeout(likeTimer); likeTimer = setTimeout(refreshLike, 900); }
+    if (s.active && prevPlaying !== null && s.playing !== prevPlaying && document.querySelector('.panel.in')) tapeSound(s.playing);
+    prevPlaying = s.active ? !!s.playing : null;
     render();
   });
 
@@ -609,7 +617,7 @@
     cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); armHide();
   });
   window.overlay.on('hide', () => { panel.classList.remove('in'); panel.classList.add('out'); clearTimeout(hideTimer); setTimeout(() => { cancelAnimationFrame(raf); starsPlay(false); }, 180); });
-  window.overlay.on('show', () => starsPlay(true));
+  window.overlay.on('show', () => { starsPlay(true); setTimeout(refreshLike, 400); });
 
   panel.addEventListener('mouseenter', () => { hovering = true; clearTimeout(hideTimer); });
   panel.addEventListener('mouseleave', () => { hovering = false; armHide(); });
@@ -618,6 +626,48 @@
   $('play').onclick = () => { if (st) { st.playing = !st.playing; setPlayKey(st.playing); } window.overlay.cmd('toggle'); };
   // the ▶❚❚ key latches down (LED lit) while music plays, like a deck's play key
   function setPlayKey(playing) { $('play').classList.toggle('latched', !!playing); }
+
+  // LIKE: the key stays pressed in (LED lit) while the playing song is in Liked Songs; a press toggles it.
+  let likeInfo = { id: null, liked: false }, likeTimer = 0, prevPlaying = null;
+  function setLikeKey(on) { $('like').classList.toggle('latched', on); $('like').classList.toggle('on', on); $('like').title = on ? 'Liked - press to unlike' : 'Like this song'; }
+  async function refreshLike() {
+    if (!st || !st.connected || !st.active) return;
+    const r = await window.overlay.likeState();
+    if (r && r.id) { likeInfo = { id: r.id, liked: !!r.liked }; setLikeKey(!!r.liked); }
+  }
+  $('like').onclick = async () => {
+    if (!likeInfo.id) await refreshLike();
+    if (!likeInfo.id) return;
+    const want = !likeInfo.liked; setLikeKey(want);
+    const r = await window.overlay.likeSet(likeInfo.id, want);
+    if (r && r.ok) likeInfo.liked = want;
+    else { setLikeKey(likeInfo.liked); if (r && r.error === 'reconnect') status('Reconnect Spotify in Settings once to use LIKE'); }
+  };
+
+  // Tape-deck mechanics, synthesised like the key clicks (no files) at the open/close sound level:
+  // starting playback spins a motor up (a low saw swelling through a lowpass), stopping lands a solenoid
+  // clunk and the motor winding down. Only while the overlay is up.
+  function tapeSound(playing) {
+    if (sfxVol <= 0) return;
+    try {
+      if (!clickCtx) clickCtx = new AudioContext({ latencyHint: 'interactive' });
+      const c = clickCtx, t = c.currentTime, lvl = sfxVol;
+      const motor = c.createOscillator(), lp = c.createBiquadFilter(), g = c.createGain();
+      motor.type = 'sawtooth'; lp.type = 'lowpass'; lp.frequency.value = 420; lp.Q.value = 0.7;
+      if (playing) {
+        motor.frequency.setValueAtTime(38, t); motor.frequency.exponentialRampToValueAtTime(112, t + 0.32);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(lvl * 0.16, t + 0.12); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+      } else {
+        motor.frequency.setValueAtTime(110, t + 0.02); motor.frequency.exponentialRampToValueAtTime(34, t + 0.4);
+        g.gain.setValueAtTime(lvl * 0.13, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+        const thump = c.createOscillator(), g2 = c.createGain();       // the solenoid clunk
+        thump.frequency.setValueAtTime(95, t); thump.frequency.exponentialRampToValueAtTime(42, t + 0.09);
+        g2.gain.setValueAtTime(lvl * 0.7, t); g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+        thump.connect(g2).connect(c.destination); thump.start(t); thump.stop(t + 0.12);
+      }
+      motor.connect(lp).connect(g).connect(c.destination); motor.start(t); motor.stop(t + 0.6);
+    } catch (_) {}
+  }
 
   // Key feel: a pressed key holds its sunk render for at least 110 ms (a quick click still reads as a
   // press) and makes a soft mechanical click - a filtered noise tick over a low thump, synthesised, at the

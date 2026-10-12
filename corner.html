@@ -6,11 +6,19 @@
 <title>Spotify Overlay - Corner Globe</title>
 <style>
   html, body { margin: 0; background: transparent; overflow: hidden; height: 100%; }
+  :root { --hue: 205; }
   #globe { width: 100%; height: 100%; display: block; transition: opacity 400ms ease-out; }
-  .paused #globe { opacity: 0; transition: opacity 600ms ease-in; }
+  /* the overlay's scope bezel round the globe (dark ring, minute ticks, lit cardinal marks), in the same accent */
+  #scope { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transition: opacity 400ms ease-out; }
+  #scope .ring { fill: none; stroke: rgba(0,0,0,.6); }
+  #scope .ring-hi { fill: none; stroke: rgba(255,255,255,.08); stroke-width: .8; }
+  #scope .tick { stroke: hsl(var(--hue) 70% 70% / .35); stroke-width: .9; }
+  #scope .tick.major { stroke: hsl(var(--hue) 100% 76% / .75); stroke-width: 1.3; filter: drop-shadow(0 0 1.5px hsl(var(--hue) 100% 60% / .8)); }
+  .paused #globe, .paused #scope { opacity: 0; transition: opacity 600ms ease-in; }
 </style>
 </head>
 <body>
+<svg id="scope" aria-hidden="true"></svg>
 <canvas id="globe"></canvas>
 <script src="globe.js"></script>
 <script>
@@ -27,10 +35,26 @@
       const c = document.getElementById('globe').style;
       c.maskImage = `linear-gradient(to ${o.layout.right ? 'left' : 'right'}, #000 68%, transparent), linear-gradient(to ${o.layout.bottom ? 'top' : 'bottom'}, #000 68%, transparent)`;
       c.maskComposite = 'intersect';
+      drawScope(o.layout);
     }
   });
+  // the bezel sits where the globe is drawn: same centre, ring just outside the globe (the overlay's 83:60 ratio)
+  function drawScope(l) {
+    const W = innerWidth, H = innerHeight, cx = W * l.cx, cy = H * l.cy, base = Math.min(W, H) * l.base, R = base * 1.38;
+    let svg = `<circle class="ring" cx="${cx}" cy="${cy}" r="${R}" stroke-width="${(R * 0.06).toFixed(1)}"/><circle class="ring-hi" cx="${cx}" cy="${cy}" r="${(R * 1.035).toFixed(1)}"/>`;
+    for (let k = 0; k < 60; k++) {
+      const a = k * Math.PI / 30, major = k % 15 === 0, r0 = R * (major ? 0.915 : 0.95), r1 = R * 0.995;
+      svg += `<line class="tick${major ? ' major' : ''}" x1="${(cx + Math.sin(a) * r0).toFixed(1)}" y1="${(cy - Math.cos(a) * r0).toFixed(1)}" x2="${(cx + Math.sin(a) * r1).toFixed(1)}" y2="${(cy - Math.cos(a) * r1).toFixed(1)}"/>`;
+    }
+    const el = document.getElementById('scope'); el.setAttribute('viewBox', `0 0 ${W} ${H}`); el.innerHTML = svg;
+  }
+  let shownHue = null;
   window.overlay.on('state', (s) => { playing = !!(s.active && s.playing); document.body.classList.toggle('paused', onlyWhilePlaying && !playing); });
-  function loop(t) { raf = requestAnimationFrame(loop); if (t - last < 32) return; last = t; react.step(); globe.draw(t); }
+  function loop(t) {
+    raf = requestAnimationFrame(loop); if (t - last < 32) return; last = t; react.step(); globe.draw(t);
+    const h = Math.round(react.hue);
+    if (shownHue === null || Math.abs(h - shownHue) > 3) { shownHue = h; document.documentElement.style.setProperty('--hue', h); }   // ticks follow the globe
+  }
   window.overlay.on('show', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); });
   window.overlay.on('hide', () => cancelAnimationFrame(raf));
 </script>

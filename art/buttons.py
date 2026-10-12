@@ -5,7 +5,7 @@
 # pressed (sunk ~5 units, in its own shadow) - the page also uses the pressed render for latched keys
 # (play while playing, shuffle while on), the way real deck keys stay down.
 # Run:  blender.exe -b -P art/buttons.py -- <out dir>
-# Writes <name>.png and <name>-down.png for: shuffle prev playpause next gear mic.  150 x 93 px = 3 px per CSS px.
+# Writes <name>.png and <name>-down.png for: shuffle prev playpause next gear mic heart (or only the names given after the dir).  150 x 93 px = 3 px per CSS px.
 import bpy, math, sys, os
 
 OUT = sys.argv[sys.argv.index('--') + 1] if '--' in sys.argv else '//keys'
@@ -92,11 +92,21 @@ def band(points, width):
         left.append((x + nx, y + ny)); right.append((x - nx, y - ny))
     return left + right[::-1]
 
+def heart(cx, cy, s, n=48):
+    """the classic parametric heart, scaled to about s units across"""
+    pts = []
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        x = 16 * math.sin(a) ** 3; y = 13 * math.cos(a) - 5 * math.cos(2 * a) - 2 * math.cos(3 * a) - math.cos(4 * a)
+        pts.append((cx + x * s / 34, cy + y * s / 34))
+    return pts
+
 def symbol(name):
     if name == 'playpause': return [tri(-12, 0, 20, 24), rect(9, 0, 5.5, 22), rect(18, 0, 5.5, 22)]   # the deck's combined key
     if name == 'next':  return [tri(-8, 0, 18, 22), tri(8, 0, 18, 22), rect(19, 0, 3.5, 22)]
     if name == 'prev':  return [tri(8, 0, 18, 22, False), tri(-8, 0, 18, 22, False), rect(-19, 0, 3.5, 22)]
     if name == 'gear':  return [gear_pts(0, 0, 13, 10, 8)]
+    if name == 'heart': return [heart(0, 1, 26)]
     if name == 'mic':   return [capsule(0, 5, 9.5, 17), band([(-8.5, 3), (-8.5, -2.5), (-5, -7), (5, -7), (8.5, -2.5), (8.5, 3)], 2.3), rect(0, -10.5, 2.4, 6), rect(0, -14, 12, 2.4)]
     if name == 'shuffle':
         a = [(-22, -8), (-9, -8), (5, 8), (14, 8)]; b = [(-22, 8), (-9, 8), (5, -8), (14, -8)]
@@ -135,6 +145,6 @@ def render(name, pressed):
     bpy.ops.render.render(write_still=True)
     print('WROTE', scene.render.filepath)
 
-for n in ('shuffle', 'prev', 'playpause', 'next', 'gear', 'mic'):
+for n in (sys.argv[sys.argv.index('--') + 2:] if len(sys.argv) > sys.argv.index('--') + 2 else ('shuffle', 'prev', 'playpause', 'next', 'gear', 'mic', 'heart')):
     for pressed in (False, True):
         render(n, pressed)

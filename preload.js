@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('overlay', {
   artistTop: (name) => ipcRenderer.invoke('artist-top', name),
   playTrack: (uri, album) => ipcRenderer.invoke('play-track', uri, album),
   artHint: (title, url) => ipcRenderer.send('art-hint', title, url),
+  likeState: () => ipcRenderer.invoke('like-state'),
+  likeSet: (id, on) => ipcRenderer.invoke('like-set', id, on),
   shuffle: (on) => ipcRenderer.invoke('shuffle', on),
   voice: (bytes) => ipcRenderer.invoke('voice', bytes),
   on: (ch, fn) => { if (['state', 'show', 'hide', 'playlists', 'meter', 'volume', 'voice-status', 'corner', 'shuffle', 'preload-art'].includes(ch)) ipcRenderer.on(ch, (_e, d) => fn(d)); },

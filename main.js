@@ -288,6 +288,11 @@ ipcMain.handle('play-track', async (_e, uri, album) => {
   setTimeout(() => write('state'), 300);
   return ok;
 });
+ipcMain.handle('like-state', async () => { try { return await spotify.likeState(); } catch (_) { return { id: null }; } });
+ipcMain.handle('like-set', async (_e, id, on) => {
+  if (!/^[A-Za-z0-9]{10,40}$/.test(id || '') || typeof on !== 'boolean') return { ok: false, error: 'failed' };
+  try { return await spotify.setLiked(id, on); } catch (_) { return { ok: false, error: 'failed' }; }
+});
 ipcMain.handle('shuffle', async (_e, on) => {
   let s = null; try { s = await spotify.shuffle(typeof on === 'boolean' ? on : undefined); } catch (_) {}
   return s;

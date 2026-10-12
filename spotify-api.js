@@ -6,7 +6,7 @@ const { app, shell, safeStorage } = require('electron');
 
 const REDIRECT_PORT = 8888, REDIRECT = `http://127.0.0.1:${REDIRECT_PORT}/callback`;
 const LIKED = 'spotify:collection:tracks';
-const SCOPES = 'user-library-read playlist-read-private playlist-read-collaborative user-read-currently-playing user-read-playback-state user-modify-playback-state';
+const SCOPES = 'user-library-read user-library-modify playlist-read-private playlist-read-collaborative user-read-currently-playing user-read-playback-state user-modify-playback-state';
 
 // the ~300 px album image (Spotify lists 640 / 300 / 64)
 const artOf = (t) => { const imgs = (t && t.album && t.album.images) || []; return imgs.length ? imgs[Math.min(1, imgs.length - 1)].url : ''; };
@@ -95,6 +95,22 @@ function create(dataDir) {
     async queueArt() {
       const r = await api('GET', '/me/player/queue'); if (r.status !== 200 || !r.json) return [];
       return (r.json.queue || []).filter(Boolean).slice(0, 3).map((t) => ({ name: t.name, url: artOf(t) })).filter((x) => x.url);
+    },
+    // LIKE: is the playing song in Liked Songs, and toggle it. Needs user-library-modify (one reconnect for
+    // logins made before it was added: a 403 comes back as { error: 'reconnect' }).
+    // Spotify moved these in 2026: /me/library/contains?uris= and /me/library?uris= (PUT/DELETE) answer, while
+    // /me/tracks/contains now returns 403. The old /me/tracks write is kept only as a fallback.
+    async likeState() {
+      const cur = await api('GET', '/me/player/currently-playing');
+      const it = cur.json && cur.json.item; if (!it || !it.id) return { id: null };
+      const r = await api('GET', '/me/library/contains?uris=' + encodeURIComponent('spotify:track:' + it.id));
+      return { id: it.id, name: it.name, liked: r.status === 200 && Array.isArray(r.json) ? !!r.json[0] : null };
+    },
+    async setLiked(id, on) {
+      let r = await api(on ? 'PUT' : 'DELETE', '/me/library?uris=' + encodeURIComponent('spotify:track:' + id));
+      if (!(r.status === 200 || r.status === 204)) r = await api(on ? 'PUT' : 'DELETE', '/me/tracks?ids=' + encodeURIComponent(id));
+      if (r.status === 200 || r.status === 204) return { ok: true, liked: on };
+      return { ok: false, error: r.status === 403 || r.status === 401 ? 'reconnect' : 'failed' };
     },
     // One page (50) of a playlist's songs for the browse view. Playlists use the newer /items endpoint (/tracks is 403 now).
     // pos is the song's place in the list (skipped rows included), which is what "play from here" needs.
