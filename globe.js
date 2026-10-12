@@ -14,7 +14,7 @@ window.MusicReact = function MusicReact() {
   // average by more than its usual wobble - so loud and quiet songs both keep moving, and breakdowns still calm it down.
   s.feed = (m) => {
     const p = Math.max(m[0], m[1]);
-    if (s.lo > s.hi && p > 0.01) { s.hi = s.lo = s.mean = p; }      // first sound: the range starts at this song's level
+    if (!s.seeded) { if (p <= 0.01) return; s.seeded = true; s.hi = s.lo = s.mean = p; }   // the range starts at the first sound, not at silence
     s.hi = Math.max(p, s.hi - 0.003); s.lo = Math.min(p, s.lo + 0.0015);
     const n = Math.min(1, Math.max(0, (p - s.lo) / Math.max(0.14, s.hi - s.lo)));
     s.mean += (p - s.mean) * 0.06; s.dev += (Math.abs(p - s.mean) - s.dev) * 0.04;
