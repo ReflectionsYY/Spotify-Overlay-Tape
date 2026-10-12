@@ -48,7 +48,7 @@
   #tracks { counter-reset: trk; }
   .tr { counter-increment: trk; display: grid; grid-template-columns: 24px 1fr; column-gap: 4px; padding: 4px 6px 4px 4px; border-radius: 4px; cursor: pointer; }
   .tr::before { content: counter(trk, decimal-leading-zero); grid-row: span 2; align-self: center; text-align: right;
-    font: 400 8.5px/1 'DSEG14', Consolas, monospace; color: hsl(var(--hue) 70% 65% / .4); }
+    font: 400 8.5px/1 'DSEG14', Consolas, monospace; color: hsl(var(--hue) 90% 74% / .85); text-shadow: 0 0 4px hsl(var(--hue) 100% 58% / .55); }
   .tr:hover { background: hsl(var(--hue) 80% 50% / .09); }
   .tr:active { transform: scale(.98); }
   .tr b, .tr i { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
