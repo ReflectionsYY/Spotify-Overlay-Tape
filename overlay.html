@@ -5,45 +5,66 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://i.scdn.co https://*.scdn.co https://mosaic.scdn.co https://image-cdn-ak.spotifycdn.com https://*.spotifycdn.com https://misc.scdn.co; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
 <title>Spotify Overlay</title>
 <style>
-  :root { --bg: rgba(12, 14, 20, .94); --line: rgba(255,255,255,.08); --text: #f2f3f5; --dim: #9aa1a8; --green: #1ed760; }
+  /* --hue is the one accent colour of the whole overlay: it follows the globe (set from the music each tick) */
+  :root { --hue: 270; --bg: rgba(12, 14, 20, .94); --line: rgba(255,255,255,.08); --text: #f2f3f5; --dim: #9aa1a8; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: transparent; overflow: hidden; height: 100%; font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; color: var(--text); user-select: none; }
-  .panel { position: absolute; inset: 6px 6px 10px; display: flex; background: var(--bg); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
+  /* the chassis: dark anodised metal with a faint brushed grain, a hard black edge and a hairline highlight */
+  .panel { position: absolute; inset: 6px 6px 10px; display: flex; border-radius: 14px; overflow: hidden;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='120'%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9 .012' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='240' height='120' filter='url(%23b)'/%3E%3C/svg%3E"), var(--bg);
+    border: 1px solid rgba(0,0,0,.75); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), inset 0 0 0 1px rgba(255,255,255,.02);
     transform: translateY(-115%); opacity: 0; transition: transform 180ms cubic-bezier(.2,0,0,1), opacity 180ms ease-out; }
+  /* VHS power-on: a scanline flicker that fades as the panel lands */
+  .panel.boot::after { content: ''; position: absolute; inset: 0; z-index: 20; pointer-events: none; mix-blend-mode: screen;
+    background: repeating-linear-gradient(0deg, hsl(var(--hue) 80% 70% / .10) 0 1px, transparent 1px 3px); animation: boot 460ms steps(7) forwards; }
+  @keyframes boot { 0% { opacity: 1; transform: translateX(-2px); } 30% { opacity: .35; transform: translateX(1px); } 45% { opacity: .8; } 100% { opacity: 0; transform: none; } }
   .panel.in { transform: translateY(0); opacity: 1; }
   .panel.out { transform: translateY(-115%); opacity: 0; transition: transform 140ms cubic-bezier(.3,0,1,1), opacity 140ms ease-in; }
 
-  .lists { width: 210px; flex: none; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  /* THE TAPE INDEX (left panel), in the deck's language: LCD-font header, LED-glyph controls, numbered rows
+     like a tape's track index, the playing row lit in the shared accent (--hue, the globe's colour) */
+  .lists { width: 210px; flex: none; display: flex; flex-direction: column; background: rgba(0,0,0,.18);
+    box-shadow: inset -1px 0 0 rgba(0,0,0,.65), inset -2px 0 0 rgba(255,255,255,.035); }   /* groove cut into the chassis */
   .no-lists .lists { display: none; }
-  .head { display: flex; align-items: center; gap: 4px; min-height: 34px; padding: 4px 8px 2px 6px; }
-  .lists h3 { flex: 1; min-width: 0; font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding: 4px 6px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .browsing .lists h3 { text-transform: none; letter-spacing: 0; font-size: 12.5px; color: var(--text); padding-left: 2px; }
+  .head { display: flex; align-items: center; gap: 4px; min-height: 34px; padding: 6px 8px 4px 8px; }
+  .lists h3 { flex: 1; min-width: 0; font: 400 9.5px/1.4 'DSEG14', Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; padding: 4px 2px;
+    color: hsl(var(--hue) 80% 72% / .75); text-shadow: 0 0 5px hsl(var(--hue) 95% 55% / .45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .browsing .lists h3 { font-weight: 700; font-size: 10.5px; color: hsl(var(--hue) 100% 82%); text-shadow: 0 0 6px hsl(var(--hue) 95% 55% / .7); padding-left: 2px; }
   .back, .lplay { width: 24px; height: 24px; flex: none; display: none; }
   .browsing .back, .browsing .lplay { display: grid; }
-  .back { color: var(--dim); } .back:hover { color: var(--text); } .back svg { width: 18px; height: 18px; }
-  .lplay { background: var(--green); color: #111; } .lplay:hover { background: #3be477; } .lplay svg { width: 13px; height: 13px; }
+  /* header controls are glowing LED glyphs, not filled buttons */
+  .back, .find, .lplay { color: hsl(var(--hue) 90% 72% / .7); border-radius: 4px; filter: drop-shadow(0 0 3px hsl(var(--hue) 95% 55% / .6)); }
+  .back:hover, .find:hover, .lplay:hover { color: hsl(var(--hue) 100% 85%); background: hsl(var(--hue) 80% 50% / .12); }
+  .back svg { width: 18px; height: 18px; } .lplay svg { width: 13px; height: 13px; }
   [hidden] { display: none !important; }
-  .find { width: 24px; height: 24px; flex: none; color: var(--dim); } .find:hover { color: var(--text); } .find svg { width: 16px; height: 16px; }
+  .find { width: 24px; height: 24px; flex: none; } .find svg { width: 16px; height: 16px; }
   .no-api .find, .searching .find, .searching .lplay, .searching .lists h3 { display: none; }
-  #q { display: none; flex: 1; min-width: 0; height: 26px; padding: 0 9px; border-radius: 13px; border: 1px solid var(--line); background: rgba(255,255,255,.07);
-    color: var(--text); font: inherit; font-size: 12.5px; outline: none; }
-  #q:focus { border-color: rgba(143,123,255,.6); }
+  /* the search box is a recessed LCD readout */
+  #q { display: none; flex: 1; min-width: 0; height: 24px; padding: 0 8px; border-radius: 4px; border: none; background: #050608;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.05); outline: none; caret-color: hsl(var(--hue) 100% 70%);
+    color: hsl(var(--hue) 100% 82%); font: 700 10px 'DSEG14', Consolas, monospace; text-transform: uppercase; letter-spacing: .04em; text-shadow: 0 0 5px hsl(var(--hue) 95% 55% / .7); }
+  #q::placeholder { color: hsl(var(--hue) 60% 60% / .35); text-shadow: none; }
   .searching #q { display: block; }
-  .tr { padding: 4px 6px; border-radius: 8px; cursor: pointer; }
-  .tr:hover { background: rgba(255,255,255,.07); }
+  #tracks { counter-reset: trk; }
+  .tr { counter-increment: trk; display: grid; grid-template-columns: 24px 1fr; column-gap: 4px; padding: 4px 6px 4px 4px; border-radius: 4px; cursor: pointer; }
+  .tr::before { content: counter(trk, decimal-leading-zero); grid-row: span 2; align-self: center; text-align: right;
+    font: 400 8.5px/1 'DSEG14', Consolas, monospace; color: hsl(var(--hue) 70% 65% / .4); }
+  .tr:hover { background: hsl(var(--hue) 80% 50% / .09); }
   .tr:active { transform: scale(.98); }
   .tr b, .tr i { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tr b { font-size: 12px; font-weight: 500; color: #dfe2e5; }
   .tr i { font-style: normal; font-size: 11px; color: var(--dim); }
-  .tr.cur b { color: var(--green); }
+  .tr.cur { background: hsl(var(--hue) 80% 50% / .1); box-shadow: inset 2px 0 0 hsl(var(--hue) 100% 65%); }
+  .tr.cur::before { color: hsl(var(--hue) 100% 75%); text-shadow: 0 0 5px hsl(var(--hue) 100% 60%); }
+  .tr.cur b { color: hsl(var(--hue) 100% 82%); }
   .scroll { overflow-y: auto; flex: 1; padding: 0 6px 8px; }
-  .scroll::-webkit-scrollbar { width: 4px; } .scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 4px; }
-  .pl { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; cursor: pointer; font-size: 12.5px; color: #dfe2e5; }
-  .pl:hover { background: rgba(255,255,255,.07); }
+  .scroll::-webkit-scrollbar { width: 4px; } .scroll::-webkit-scrollbar-thumb { background: hsl(var(--hue) 60% 60% / .3); border-radius: 4px; }
+  .pl { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 4px; cursor: pointer; font-size: 12.5px; color: #dfe2e5; }
+  .pl:hover { background: hsl(var(--hue) 80% 50% / .09); }
   .pl:active { transform: scale(.98); }
-  .pl img, .pl .ph { width: 26px; height: 26px; border-radius: 5px; object-fit: cover; flex: none; background: #2a2d31; }
-  .pl .liked { background: linear-gradient(135deg, #4b2bd6, #8fd3ff); display: grid; place-items: center; }
+  .pl img, .pl .ph { width: 26px; height: 26px; border-radius: 3px; object-fit: cover; flex: none; background: #2a2d31;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.7), 0 1px 0 1px rgba(255,255,255,.04); }   /* tiny covers sit in a bezel */
+  .pl .liked { background: linear-gradient(135deg, hsl(var(--hue) 75% 32%), hsl(calc(var(--hue) + 40) 90% 66%)); display: grid; place-items: center; }
   .pl .liked svg { width: 14px; height: 14px; fill: #fff; }
   .pl span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .connect { margin: 8px 10px; font-size: 12px; color: var(--dim); line-height: 1.4; }
@@ -51,14 +72,18 @@
   .now { flex: 1; display: flex; align-items: stretch; gap: 14px; padding: 10px 16px 10px 12px; min-width: 0; }
   /* the art is as tall as everything beside it (title box down to the controls) and stays square */
   .art { height: auto; aspect-ratio: 1 / 1; border-radius: 10px; flex: none; align-self: stretch; background: #22252a center/cover no-repeat; transition: opacity 160ms ease-out; }
-  .art { position: relative; overflow: hidden; }
+  /* the cover is set into the hardware: a dark recessed rim like the key slots, and a faint jewel-case glare */
+  .art { position: relative; overflow: hidden; border-radius: 6px; margin: 3px;
+    box-shadow: 0 0 0 3px #050608, 0 0 0 4px rgba(0,0,0,.8), 0 1px 0 4px rgba(255,255,255,.05); }
+  .art::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    background: linear-gradient(118deg, rgba(255,255,255,.13) 0%, rgba(255,255,255,.03) 32%, transparent 33%, transparent 100%); }
   .art .iris { position: absolute; inset: 0; background: center / cover no-repeat; }
   .art.waiting { opacity: .45; }   /* the song changed and its cover is still on the way - dim the old one rather than show a wrong one */
   .info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
   /* the now-playing box: title + artist over a little window of the Windows 98 starfield */
   /* the frame is a Blender-modelled gunmetal bezel (art/frame.py -> media/frame.png), 9-sliced so it
      fits any width: 48 px corners in the 2x image = 24 CSS px, the plain rim stretches between them */
-  .np { --hue: 270; position: relative; overflow: hidden; isolation: isolate; display: flex; align-items: center; gap: 10px;
+  .np { position: relative; overflow: hidden; isolation: isolate; display: flex; align-items: center; gap: 10px;
     border: 7px solid transparent; border-image: url(media/frame.png) 48 / 24px stretch; padding: 4px 8px 4px 10px; }
   .np-text { flex: 1; min-width: 0; }
   .np .stars { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; opacity: .9; pointer-events: none; border-radius: 4px; }
@@ -103,12 +128,15 @@
   .title.marquee { text-overflow: clip; }
   .title.marquee span { display: inline-block; animation: marquee var(--dur, 10s) ease-in-out infinite alternate; }
   @keyframes marquee { 0%, 12% { transform: translateX(0); } 88%, 100% { transform: translateX(var(--shift, 0px)); } }
-  #wave { width: 100%; height: 20px; display: block; }
+  /* the waveform runs on a small recessed oscilloscope screen with a faint graticule */
+  #wave { width: 100%; height: 20px; display: block; border-radius: 4px; background-color: #050608;
+    background-image: linear-gradient(hsl(var(--hue) 60% 60% / .07) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--hue) 60% 60% / .07) 1px, transparent 1px);
+    background-size: 100% 5px, 12px 100%; background-position: 0 2px, 0 0; box-shadow: inset 0 2px 4px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.05); }
   /* THE TAPE: a line-art VHS cassette in the clock's glowing LED style (no fill, no backdrop) whose reels
      turn while the music plays - and the tape really winds across: the left pack shrinks and the right
      grows with the song, the smaller reel spinning faster. Beside it, a thick segmented LED line for
      the song's progress (click to jump), and the time left in 7-segment digits like a VCR counter. */
-  .tape { --hue: 270; display: flex; align-items: center; gap: 9px; height: 38px; }
+  .tape { display: flex; align-items: center; gap: 9px; height: 38px; }
   .vhs { flex: none; overflow: visible; }
   /* flat thin-line OP-1 look: white hubs and head, tape and packs in the globe's colour */
   .vhs .shell { fill: none; stroke: rgba(255,255,255,.62); stroke-width: .8; stroke-linejoin: round; }
@@ -135,7 +163,7 @@
      keys (art/buttons.py -> media/keys/) sitting flush in dark recessed slots, like a 90s deck's transport
      row. A key sinks while pressed (and holds a beat so a quick click still reads), with a soft mechanical
      click; play and shuffle LATCH down while playing / on, the way real deck keys stay in. */
-  .deck { --hue: 270; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .deck { display: flex; align-items: center; justify-content: center; gap: 8px; }
   .slot { display: flex; padding: 3px; border-radius: 6px; background: #050608;
     box-shadow: inset 0 2px 5px rgba(0,0,0,.9), inset 0 0 0 1px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.055); }
   button.hw { position: relative; width: 50px; height: 31px; border-radius: 3px; flex: none;
@@ -159,7 +187,8 @@
   .no-voice .mic { display: none; }
   @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(143,123,255,.18); } }
   .artist.voice { color: #c9bfff; }
-  .viz { position: relative; width: 176px; flex: none; display: grid; place-items: center; border-left: 1px solid var(--line); overflow: hidden; }
+  .viz { position: relative; width: 176px; flex: none; display: grid; place-items: center; overflow: hidden;
+    box-shadow: inset 1px 0 0 rgba(0,0,0,.65), inset 2px 0 0 rgba(255,255,255,.035); }   /* same cut groove as the index */
   /* the starfield streams out from behind the globe, fading into the panel at the edges */
   .viz .stars { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .75; pointer-events: none;
     -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent 100%); mask-image: radial-gradient(closest-side, #000 55%, transparent 100%); }
@@ -318,7 +347,7 @@
       if (Math.abs(v.playbackRate - starRate) > 0.04) v.playbackRate = starRate;
       if (starHue === null || Math.abs(hue - starHue) > 3) v.style.filter = `sepia(.5) saturate(2.4) hue-rotate(${hue}deg) brightness(1.15)`;
     }
-    if (starHue === null || Math.abs(hue - starHue) > 3) { starHue = hue; npBox.style.setProperty('--hue', Math.round(react.hue)); $('deck').style.setProperty('--hue', Math.round(react.hue)); $('tape').style.setProperty('--hue', Math.round(react.hue)); }  // clock, meter, title, deck LEDs follow the globe
+    if (starHue === null || Math.abs(hue - starHue) > 3) { starHue = hue; document.documentElement.style.setProperty('--hue', Math.round(react.hue)); }  // the one accent: everything follows the globe
     // the meter's bar stutter and grain follow the music: still when it's quiet, shaking on loud passages and beats
     const amp = Math.min(1.6, react.energy * 1.4 + react.beat * 0.8);
     meterAmp += (amp - meterAmp) * 0.5;
@@ -516,11 +545,13 @@
   function sfx(name) { if (sfxVol <= 0) return; const a = SFX[name]; a.pause(); a.currentTime = 0; a.volume = sfxVol; a.play().catch(() => {}); }
   window.overlay.on('show', (o) => { sfxVol = typeof o.sfxVolume === 'number' ? o.sfxVolume : 0.35; sfx('open'); });
   window.overlay.on('hide', () => sfx('close'));
+  let bootTimer = 0;
 
   window.overlay.on('show', (o) => {
     autoHide = o.autoHide; react.intensity = o.intensity || 1;
     document.body.classList.toggle('no-lists', o.showPlaylists === false);
-    panel.classList.remove('out'); requestAnimationFrame(() => { panel.classList.add('in'); globe.fit(); fitWave(); });
+    panel.classList.remove('out', 'boot'); requestAnimationFrame(() => { panel.classList.add('in', 'boot'); globe.fit(); fitWave(); });
+    clearTimeout(bootTimer); bootTimer = setTimeout(() => panel.classList.remove('boot'), 500);
     cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); armHide();
   });
   window.overlay.on('hide', () => { panel.classList.remove('in'); panel.classList.add('out'); clearTimeout(hideTimer); setTimeout(() => { cancelAnimationFrame(raf); starsPlay(false); }, 180); });

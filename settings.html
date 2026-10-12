@@ -5,25 +5,59 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
 <title>Spotify Overlay - Settings</title>
 <style>
-  body { margin: 0; background: #121212; color: #eaeaea; font: 14px/1.5 "Segoe UI", system-ui, sans-serif; padding: 22px 28px 40px; }
-  h1 { font-size: 20px; margin: 0 0 2px; } .sub { color: #9a9a9a; margin-bottom: 8px; }
-  h2 { font-size: 12px; margin: 22px 0 8px; text-transform: uppercase; letter-spacing: .1em; color: #8fd3ff; }
-  .card { background: #1a1a1a; border: 1px solid #262626; border-radius: 10px; padding: 12px 14px; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
-  .row + .row { border-top: 1px solid #222; }
-  .hint { color: #8a8a8a; font-size: 12.5px; }
+  /* Settings in the overlay's hardware language: the same anodised chassis, LCD headings, sections set
+     into recessed slots, hardware slide switches, segmented LED sliders with a silver key for a handle,
+     and silver keys for buttons. One accent (--hue), the overlay's resting blue. */
+  @font-face { font-family: 'DSEG14'; src: url(fonts/DSEG14Classic-Bold.woff2) format('woff2'); font-weight: 700; }
+  @font-face { font-family: 'DSEG14'; src: url(fonts/DSEG14Classic-Regular.woff2) format('woff2'); font-weight: 400; }
+  :root { --hue: 205; }
+  body { margin: 0; color: #e4e6ea; font: 14px/1.5 "Segoe UI", system-ui, sans-serif; padding: 24px 28px 40px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='120'%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9 .012' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='240' height='120' filter='url(%23b)'/%3E%3C/svg%3E"), #0e1015; }
+  h1 { margin: 0 0 4px; font: 700 18px/1.3 'DSEG14', Consolas, monospace; text-transform: uppercase; letter-spacing: .04em;
+    color: hsl(var(--hue) 100% 84%); text-shadow: 0 0 8px hsl(var(--hue) 95% 55% / .7); }
+  .sub { color: #8d939c; margin-bottom: 8px; font-size: 12.5px; }
+  h2 { display: flex; align-items: center; gap: 10px; margin: 24px 0 8px; font: 400 10.5px/1 'DSEG14', Consolas, monospace; text-transform: uppercase; letter-spacing: .06em;
+    color: hsl(var(--hue) 85% 72%); text-shadow: 0 0 5px hsl(var(--hue) 95% 55% / .55); }
+  h2::after { content: ''; flex: 1; height: 1px; background: rgba(0,0,0,.7); box-shadow: 0 1px 0 rgba(255,255,255,.04); }   /* engraved rule */
+  .card { background: #07080b; border-radius: 8px; padding: 8px 14px; box-shadow: inset 0 2px 7px rgba(0,0,0,.9), inset 0 0 0 1px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.05); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+  .row + .row { border-top: 1px solid rgba(0,0,0,.8); box-shadow: inset 0 1px 0 rgba(255,255,255,.03); }
+  .hint { color: #7f858e; font-size: 12px; }
   ol { padding-left: 20px; margin: 4px 0; } li { margin: 4px 0; }
-  code { background: #232323; padding: 1px 6px; border-radius: 4px; user-select: all; }
-  input[type=text], select { background: #1e1e1e; border: 1px solid #333; color: #fff; border-radius: 6px; padding: 7px 9px; font: inherit; }
-  input[type=range] { width: 160px; accent-color: #8f7bff; }
-  button { background: #8f7bff; color: #fff; border: 0; border-radius: 999px; padding: 7px 16px; font: 600 13px "Segoe UI"; cursor: pointer; }
-  button.ghost { background: #2a2a2a; }
-  .switch { position: relative; width: 40px; height: 22px; flex: none; } .switch input { display: none; }
-  .switch span { position: absolute; inset: 0; background: #3a3a3a; border-radius: 999px; transition: background 150ms; cursor: pointer; }
-  .switch span::after { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: transform 150ms ease-out; }
-  .switch input:checked + span { background: #8f7bff; } .switch input:checked + span::after { transform: translateX(18px); }
-  .key { min-width: 120px; text-align: center; cursor: pointer; } .key.listening { border-color: #8f7bff; color: #8f7bff; }
-  .ok { color: #1ed760; } .err { color: #ff7a7a; } a { color: #8fd3ff; }
+  code { background: #030304; color: hsl(var(--hue) 100% 82%); padding: 1px 6px; border-radius: 3px; user-select: all; box-shadow: inset 0 1px 3px rgba(0,0,0,.9); }
+  /* LCD readouts */
+  input[type=text], select { background: #030304; border: none; color: hsl(var(--hue) 100% 84%); border-radius: 4px; padding: 7px 10px; font: inherit; outline: none;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.05); text-shadow: 0 0 5px hsl(var(--hue) 95% 55% / .5); caret-color: hsl(var(--hue) 100% 70%); }
+  select option { background: #0b0d11; color: #e4e6ea; }
+  input[type=text]:focus, select:focus { box-shadow: inset 0 2px 4px rgba(0,0,0,.95), 0 0 0 1px hsl(var(--hue) 100% 60% / .5); }
+  /* segmented LED slider; --p (0..1) is the filled part, set from script */
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 160px; height: 18px; background: transparent; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 2px; box-shadow: inset 0 1px 3px rgba(0,0,0,.9);
+    background: repeating-linear-gradient(90deg, transparent 0 5px, #07080b 5px 7px),
+      linear-gradient(90deg, hsl(var(--hue) 100% 62%) calc(var(--p, 0) * 100%), hsl(var(--hue) 90% 60% / .14) 0); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 18px; margin-top: -5px; border-radius: 2px;
+    background: linear-gradient(#d6d9de, #8e9299 55%, #777b82); box-shadow: 0 1px 2px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.6); }
+  input[type=range]:active::-webkit-slider-thumb { background: linear-gradient(#b9bcc2, #7b7f86 55%, #676b72); }
+  .row > span[id$="V"] { font: 400 10px 'DSEG14', Consolas, monospace; color: hsl(var(--hue) 100% 78%); text-shadow: 0 0 4px hsl(var(--hue) 95% 55% / .6); }
+  /* silver keys */
+  button { background: linear-gradient(#c9ccd1, #8d9198); color: #15171b; border: 0; border-radius: 4px; padding: 7px 16px; font: 700 12px "Segoe UI"; letter-spacing: .03em; cursor: pointer;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.8), 0 2px 0 #3c3f45, inset 0 1px 0 rgba(255,255,255,.55); }
+  button:hover { filter: brightness(1.08); }
+  button:active { transform: translateY(2px); box-shadow: 0 0 0 1px rgba(0,0,0,.8), inset 0 1px 2px rgba(0,0,0,.35); background: linear-gradient(#aeb1b7, #7f838a); }
+  button.ghost { background: linear-gradient(#6f737a, #4b4e54); color: #e8eaee; }
+  /* hardware slide switch: a dark slot, a silver knob, and the slot lit in the accent when on */
+  .switch { position: relative; width: 42px; height: 22px; flex: none; } .switch input { display: none; }
+  .switch span { position: absolute; inset: 0; background: #030304; border-radius: 4px; cursor: pointer; transition: box-shadow 150ms;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.05); }
+  .switch span::after { content: ""; position: absolute; width: 18px; height: 16px; left: 3px; top: 3px; border-radius: 2px; transition: transform 140ms ease-out;
+    background: linear-gradient(#d6d9de, #8e9299 55%, #777b82); box-shadow: 0 1px 2px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.6); }
+  .switch input:checked + span { box-shadow: inset 0 2px 4px rgba(0,0,0,.95), inset 0 0 10px hsl(var(--hue) 100% 55% / .55), 0 0 0 1px hsl(var(--hue) 100% 60% / .35); }
+  .switch input:checked + span::after { transform: translateX(18px); }
+  .key { min-width: 120px; text-align: center; cursor: pointer; font: 700 12px 'DSEG14', Consolas, monospace !important; text-transform: uppercase; }
+  .key.listening { color: hsl(var(--hue) 100% 70%); box-shadow: inset 0 2px 4px rgba(0,0,0,.95), 0 0 0 1px hsl(var(--hue) 100% 60% / .6); }
+  ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: #07080b; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--hue) 50% 45% / .45); border-radius: 4px; border: 2px solid #07080b; }
+  .ok { color: #5dff8a; text-shadow: 0 0 5px rgba(80,255,130,.5); } .err { color: #ff6b5a; } a { color: hsl(var(--hue) 100% 74%); }
 </style>
 </head>
 <body>
@@ -85,7 +119,11 @@
     $('intensity').value = c.intensity; $('intensityV').textContent = (+c.intensity).toFixed(1) + 'x';
     $('cEnabled').checked = c.corner.enabled; $('cCorner').value = c.corner.corner; $('cSize').value = c.corner.size; $('cSizeV').textContent = c.corner.size + 'px';
     $('cOpacity').value = c.corner.opacity; $('cOpacityV').textContent = Math.round(c.corner.opacity * 100) + '%'; $('cOnly').checked = c.corner.onlyWhilePlaying;
+    document.querySelectorAll('input[type=range]').forEach(paintRange);
   }
+  // the LED slider's lit part follows the value
+  function paintRange(el) { el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min)).toFixed(3)); }
+  document.querySelectorAll('input[type=range]').forEach((el) => el.addEventListener('input', () => paintRange(el)));
   $('dash').onclick = (e) => { e.preventDefault(); window.open('https://developer.spotify.com/dashboard'); };
   $('connect').onclick = async () => {
     $('cmsg').className = 'hint'; $('cmsg').textContent = 'Waiting for you to click "Agree" in the browser...';
