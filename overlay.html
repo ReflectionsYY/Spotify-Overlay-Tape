@@ -70,12 +70,15 @@
   .meter i.on { background: hsl(var(--hue) 95% var(--l, 58%));
     box-shadow: -1px 0 rgba(255,50,90,.45), 1px 0 rgba(60,230,255,.55), 0 0 4px hsl(var(--hue) 95% 60% / .8); }
   .meter i.shake { animation: bar-stutter var(--d, .25s) steps(1) infinite; animation-delay: var(--o, 0s); }
+  /* --amp (0 = still, ~1.5 = loud) is set from the music each tick, so the bars only shake with it */
   @keyframes bar-stutter {
-    0% { transform: translate(0, 0) scaleY(1); } 22% { transform: translate(.6px, -.5px) scaleY(1.07); }
-    41% { transform: translate(-.4px, 0) scaleY(.94); } 63% { transform: translate(.2px, .4px) scaleY(1.03); }
-    82% { transform: translate(-.5px, -.3px) scaleY(.97); } }
+    0% { transform: translate(0, 0) scaleY(1); }
+    22% { transform: translate(calc(.6px * var(--amp, 0)), calc(-.5px * var(--amp, 0))) scaleY(calc(1 + .07 * var(--amp, 0))); }
+    41% { transform: translate(calc(-.4px * var(--amp, 0)), 0) scaleY(calc(1 - .06 * var(--amp, 0))); }
+    63% { transform: translate(calc(.2px * var(--amp, 0)), calc(.4px * var(--amp, 0))) scaleY(calc(1 + .03 * var(--amp, 0))); }
+    82% { transform: translate(calc(-.5px * var(--amp, 0)), calc(-.3px * var(--amp, 0))) scaleY(calc(1 - .03 * var(--amp, 0))); } }
   .meter.live i.on { filter: brightness(1.3); }
-  .meter::after { content: ''; position: absolute; inset: -2px; pointer-events: none; mix-blend-mode: overlay; opacity: .55;
+  .meter::after { content: ''; position: absolute; inset: -2px; pointer-events: none; mix-blend-mode: overlay; opacity: calc(.12 + .3 * var(--amp, 0));
     background: repeating-linear-gradient(0deg, rgba(0,0,0,.35) 0 1px, transparent 1px 2px),
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)'/%3E%3C/svg%3E");
     animation: vhs-grain .3s steps(3) infinite; }
@@ -248,7 +251,12 @@
       if (starHue === null || Math.abs(hue - starHue) > 3) v.style.filter = `sepia(.5) saturate(2.4) hue-rotate(${hue}deg) brightness(1.15)`;
     }
     if (starHue === null || Math.abs(hue - starHue) > 3) { starHue = hue; npBox.style.setProperty('--hue', Math.round(react.hue)); }  // clock, meter, title follow the globe
+    // the meter's bar stutter and grain follow the music: still when it's quiet, shaking on loud passages and beats
+    const amp = Math.min(1.6, react.energy * 1.4 + react.beat * 0.8);
+    meterAmp += (amp - meterAmp) * 0.5;
+    npBox.style.setProperty('--amp', meterAmp < 0.03 ? 0 : meterAmp.toFixed(2));
   }
+  let meterAmp = 0;
   const npBox = document.querySelector('.np');
   function starsPlay(on) { for (const v of stars) { if (on) v.play().catch(() => {}); else v.pause(); } }
 
