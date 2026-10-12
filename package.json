@@ -29,7 +29,9 @@
                                 "icon.png",
                                 "watcher/SpotifyOverlayWatcher.exe",
                                 "sounds/open.wav",
-                                "sounds/close.wav"
+                                "sounds/close.wav",
+                                "media/stars-strip.mp4",
+                                "media/stars-globe.mp4"
                             ],
                   "extraResources":  [
                                          {

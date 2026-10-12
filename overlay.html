@@ -48,12 +48,47 @@
   .pl span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .connect { margin: 8px 10px; font-size: 12px; color: var(--dim); line-height: 1.4; }
 
-  .now { flex: 1; display: flex; align-items: center; gap: 16px; padding: 14px 18px; min-width: 0; }
-  .art { width: 112px; height: 112px; border-radius: 10px; flex: none; background: #22252a center/cover no-repeat; }
-  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-  .title { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .artist { font-size: 13px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #wave { width: 100%; height: 34px; display: block; }
+  .now { flex: 1; display: flex; align-items: stretch; gap: 14px; padding: 10px 16px 10px 12px; min-width: 0; }
+  /* the art is as tall as everything beside it (title box down to the controls) and stays square */
+  .art { height: auto; aspect-ratio: 1 / 1; border-radius: 10px; flex: none; align-self: stretch; background: #22252a center/cover no-repeat; }
+  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
+  /* the now-playing box: title + artist over a little window of the Windows 98 starfield */
+  /* the frame is a Blender-modelled gunmetal bezel (art/frame.py -> media/frame.png), 9-sliced so it
+     fits any width: 48 px corners in the 2x image = 24 CSS px, the plain rim stretches between them */
+  .np { position: relative; overflow: hidden; isolation: isolate; display: flex; align-items: center; gap: 10px;
+    border: 7px solid transparent; border-image: url(media/frame.png) 48 / 24px stretch; padding: 4px 8px 4px 10px; }
+  .np-text { flex: 1; min-width: 0; }
+  .np .stars { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; opacity: .9; pointer-events: none; border-radius: 4px; }
+  /* VHS on-screen-display volume meter: blue stepped bars that follow the volume slider, with tape grain,
+     a red/cyan colour fringe, faint scanlines and a tiny jitter, like a tape deck's OSD */
+  .meter { position: relative; flex: none; display: flex; align-items: flex-end; gap: 4px; height: 28px; padding: 1px 2px;
+    animation: vhs-jitter .23s steps(2) infinite; }
+  .meter .lbl { font: 700 9px/1 Consolas, "Courier New", monospace; letter-spacing: .08em; color: #7fd2ff; align-self: flex-start; margin-top: 1px;
+    text-shadow: -1px 0 rgba(255,50,90,.6), 1px 0 rgba(60,230,255,.6), 0 0 4px rgba(90,180,255,.8); }
+  .meter .bars { display: flex; align-items: flex-end; gap: 2px; height: 100%; }
+  .meter i { width: 4px; background: rgba(70,150,255,.13); transition: background 90ms linear, box-shadow 90ms linear; }
+  .meter i.on { background: #2f86ff; box-shadow: -1px 0 rgba(255,50,90,.45), 1px 0 rgba(60,230,255,.55), 0 0 4px rgba(47,134,255,.8); }
+  .meter i.on.y { background: #3fbaff; }
+  .meter i.on.r { background: #a9ecff; box-shadow: -1px 0 rgba(255,50,90,.45), 1px 0 rgba(60,230,255,.55), 0 0 5px rgba(169,236,255,.9); }
+  .meter.live i.on { filter: brightness(1.3); }
+  .meter::after { content: ''; position: absolute; inset: -2px; pointer-events: none; mix-blend-mode: overlay; opacity: .55;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,.35) 0 1px, transparent 1px 2px),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: vhs-grain .3s steps(3) infinite; }
+  @keyframes vhs-jitter { 0% { transform: translate(0, 0); } 25% { transform: translate(.4px, -.3px); } 50% { transform: translate(-.3px, .2px); } 75% { transform: translate(.2px, .4px); } }
+  @keyframes vhs-grain { 0% { background-position: 0 0, 0 0; } 33% { background-position: 0 1px, -17px 9px; } 66% { background-position: 0 0, 23px -14px; } }
+  /* 90s alarm-clock time, between the song and the meter */
+  .npclock { flex: none; display: flex; align-items: center; gap: 1px; }
+  .np::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background: linear-gradient(90deg, rgba(6,8,16,.55), rgba(6,8,16,.15) 55%, rgba(6,8,16,.35)); }
+  .title { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 6px #000, 0 0 2px #000; }
+  .artist { font-size: 13px; color: #b9bfd0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 5px #000; }
+  .artist.link { cursor: pointer; } .artist.link:hover { color: #fff; text-decoration: underline; text-underline-offset: 2px; }
+  /* long titles drift sideways so the whole name gets read (pauses at each end) */
+  .title.marquee { text-overflow: clip; }
+  .title.marquee span { display: inline-block; animation: marquee var(--dur, 10s) ease-in-out infinite alternate; }
+  @keyframes marquee { 0%, 12% { transform: translateX(0); } 88%, 100% { transform: translateX(var(--shift, 0px)); } }
+  #wave { width: 100%; height: 26px; display: block; }
   .bar { position: relative; height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); cursor: pointer; margin-top: 2px; }
   .bar:hover { height: 7px; margin-top: 1px; }
   .fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: var(--green); }
@@ -79,8 +114,21 @@
   .no-voice .mic { display: none; }
   @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(143,123,255,.18); } }
   .artist.voice { color: #c9bfff; }
-  .viz { width: 176px; flex: none; display: grid; place-items: center; border-left: 1px solid var(--line); }
-  #globe { width: 166px; height: 166px; display: block; }
+  .viz { position: relative; width: 176px; flex: none; display: grid; place-items: center; border-left: 1px solid var(--line); overflow: hidden; }
+  /* the starfield streams out from behind the globe, fading into the panel at the edges */
+  .viz .stars { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .75; pointer-events: none;
+    -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent 100%); mask-image: radial-gradient(closest-side, #000 55%, transparent 100%); }
+  #globe { position: relative; width: 166px; height: 166px; display: block; }
+  /* 90s alarm-clock time: red 7-segment LEDs (drawn as SVG, unlit segments ghosted) */
+  .seg { display: flex; gap: 2px; align-items: flex-end; }
+  .seg svg { display: block; overflow: visible; }
+  .seg .off { fill: rgba(255,60,40,.09); }
+  .seg .on { fill: #ff3b2a; filter: drop-shadow(0 0 2px rgba(255,59,42,.9)); }
+  .seg .colon { animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+  .ampm { display: flex; flex-direction: column; gap: 1px; font: 700 7px/1 Consolas, monospace; margin-left: 2px; }
+  .ampm b { color: rgba(255,60,40,.22); font-weight: 700; }
+  .ampm b.lit { color: #ff3b2a; text-shadow: 0 0 3px rgba(255,59,42,.9); }
 </style>
 </head>
 <body>
@@ -99,8 +147,15 @@
   <div class="now">
     <div class="art" id="art"></div>
     <div class="info">
-      <div class="title" id="title">Nothing playing</div>
-      <div class="artist" id="artist">Open Spotify and press play</div>
+      <div class="np">
+        <video class="stars" id="starsNp" src="media/stars-strip.mp4" muted loop playsinline preload="auto"></video>
+        <div class="np-text">
+          <div class="title" id="title">Nothing playing</div>
+          <div class="artist" id="artist">Open Spotify and press play</div>
+        </div>
+        <div class="npclock"><div class="seg" id="clockTime"></div><div class="ampm"><b id="am">AM</b><b id="pm">PM</b></div></div>
+        <div class="meter" id="meter" title="Volume"><span class="lbl">VOL</span><div class="bars" id="meterBars"></div></div>
+      </div>
       <canvas id="wave"></canvas>
       <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
       <div class="times"><span id="pos">0:00</span><span class="left" id="left">-0:00</span></div>
@@ -116,7 +171,7 @@
       </div>
     </div>
   </div>
-  <div class="viz"><canvas id="globe"></canvas></div>
+  <div class="viz"><video class="stars" id="starsViz" src="media/stars-globe.mp4" muted loop playsinline preload="auto"></video><canvas id="globe"></canvas></div>
 </div>
 <script src="globe.js"></script>
 <script>
@@ -127,7 +182,7 @@
   let st = null, stAt = 0, hideTimer = null, autoHide = 8, hovering = false, raf = 0, lastDraw = 0;
 
   function render() {
-    if (!st || !st.active) { $('title').textContent = 'Nothing playing'; if (!voiceText) $('artist').textContent = 'Open Spotify and press play'; $('fill').style.width = '0'; $('pos').textContent = '0:00'; $('left').textContent = '-0:00'; return; }
+    if (!st || !st.active) { setTitle('Nothing playing'); if (!voiceText) $('artist').textContent = 'Open Spotify and press play'; $('fill').style.width = '0'; $('pos').textContent = '0:00'; $('left').textContent = '-0:00'; return; }
     const pos = Math.min(st.duration, st.position + (st.playing ? (performance.now() - stAt) / 1000 : 0));
     $('fill').style.width = (st.duration ? pos / st.duration * 100 : 0) + '%';
     $('pos').textContent = fmt(pos); $('left').textContent = '-' + fmt(st.duration - pos);
@@ -164,7 +219,43 @@
     raf = requestAnimationFrame(loop);
     render();
     if (t - lastDraw < 32) return;            // ~30 fps keeps the GPU free for the game
-    lastDraw = t; react.step(); globe.draw(t); drawWave();
+    lastDraw = t; react.step(); globe.draw(t); drawWave(); starsTick(t);
+  }
+
+  // ---------------------------------------------------------------- starfield (Windows 98 screensaver loops)
+  // Two tiny seamless 24 s loops (media/), playing only while the overlay is shown. They react to the
+  // music: loud passages push the stars toward warp speed, and they take on a light tint of the globe's
+  // colour. Updated a few times a second, not every frame.
+  const stars = [$('starsNp'), $('starsViz')];
+  let starRate = 1, starHue = null, lastStarTick = 0;
+  function starsTick(t) {
+    if (t - lastStarTick < 200) return;
+    lastStarTick = t;
+    const want = Math.max(0.6, Math.min(3, 0.75 + react.energy * 1.7 + react.beat * 0.5));
+    starRate += (want - starRate) * 0.35;
+    const hue = Math.round(react.hue - 45);
+    for (const v of stars) {
+      if (Math.abs(v.playbackRate - starRate) > 0.04) v.playbackRate = starRate;
+      if (starHue === null || Math.abs(hue - starHue) > 3) v.style.filter = `sepia(.5) saturate(2.4) hue-rotate(${hue}deg) brightness(1.15)`;
+    }
+    if (starHue === null || Math.abs(hue - starHue) > 3) starHue = hue;
+  }
+  function starsPlay(on) { for (const v of stars) { if (on) v.play().catch(() => {}); else v.pause(); } }
+
+  // ---------------------------------------------------------------- title (drifts sideways when it doesn't fit)
+  let shownTitle = null;
+  function setTitle(text) {
+    if (text === shownTitle) return;
+    shownTitle = text;
+    const el = $('title'), span = document.createElement('span');
+    span.textContent = text; el.replaceChildren(span); el.classList.remove('marquee');
+    requestAnimationFrame(() => {
+      const shift = el.clientWidth - span.scrollWidth;
+      if (shift >= 0) return;
+      el.style.setProperty('--shift', shift + 'px');
+      el.style.setProperty('--dur', Math.max(5, -shift / 22).toFixed(1) + 's');
+      el.classList.add('marquee');
+    });
   }
   requestAnimationFrame(() => { globe.fit(); fitWave(); });
   function armHide() { clearTimeout(hideTimer); if (autoHide > 0 && !hovering && !document.body.classList.contains('searching'))hideTimer = setTimeout(() => window.overlay.hide(), autoHide * 1000); }
@@ -173,12 +264,14 @@
   window.overlay.on('state', (s) => {
     st = s; stAt = performance.now();
     if (s.active) {
-      $('title').textContent = s.title || 'Unknown'; if (!voiceText) $('artist').textContent = s.artist || '';
+      setTitle(s.title || 'Unknown'); if (!voiceText) $('artist').textContent = s.artist || '';
       $('playIcon').innerHTML = s.playing ? PAUSE : PLAY;
       $('art').style.backgroundImage = s.art ? `url("${s.art}")` : 'none';
     }
     const note = $('connectNote'); if (s.connected && note) note.style.display = 'none';   // gone once playlists are listed
     document.body.classList.toggle('no-api', !s.connected);
+    const canBrowse = !!(s.connected && s.active && s.artist && !voiceText && !document.body.classList.contains('no-lists'));
+    $('artist').classList.toggle('link', canBrowse); $('artist').title = canBrowse ? 'Show ' + s.artist + "'s top songs" : '';
     if (s.title !== lastTitle) { lastTitle = s.title; markCurrent(); }
     render();
   });
@@ -226,6 +319,27 @@
   $('tracks').addEventListener('scroll', (e) => { const b = e.currentTarget; if (b.scrollTop + b.clientHeight > b.scrollHeight - 120) loadMore(); });
   $('back').onclick = closeList;
   $('lplay').onclick = () => { if (view && view.uri) { window.overlay.playPlaylist(view.uri); armHide(); } };
+
+  // ---------------------------------------------------------------- artist top songs (click the artist name in the box)
+  // Opens the artist's top songs in the list panel; the back arrow returns to the playlists, the green
+  // play button plays the artist, and a click on a song plays it.
+  function openArtist() {
+    if (!$('artist').classList.contains('link')) return;
+    const name = st.artist;
+    closeSearch(false);
+    document.body.classList.add('browsing');
+    $('listName').textContent = name; $('listName').title = name + ' - top songs';
+    let asked = false;
+    const fetchTop = async () => {
+      if (asked) return { items: [], next: null };
+      asked = true;
+      const r = await window.overlay.artistTop(name);
+      if (view && view.fetch === fetchTop && r.uri) { view.uri = r.uri; $('listName').textContent = r.name || name; }
+      return r;
+    };
+    showSongs({ fetch: fetchTop, play: (t) => window.overlay.playTrack(t.uri, t.album), empty: "Couldn't load this artist." });
+  }
+  $('artist').onclick = openArtist;
 
   // ---------------------------------------------------------------- song search (the magnifier in the list header)
   // Typing needs keyboard focus, so the overlay takes focus only while the search box is open.
@@ -280,7 +394,8 @@
     panel.classList.remove('out'); requestAnimationFrame(() => { panel.classList.add('in'); globe.fit(); fitWave(); });
     cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); armHide();
   });
-  window.overlay.on('hide', () => { panel.classList.remove('in'); panel.classList.add('out'); clearTimeout(hideTimer); setTimeout(() => cancelAnimationFrame(raf), 180); });
+  window.overlay.on('hide', () => { panel.classList.remove('in'); panel.classList.add('out'); clearTimeout(hideTimer); setTimeout(() => { cancelAnimationFrame(raf); starsPlay(false); }, 180); });
+  window.overlay.on('show', () => starsPlay(true));
 
   panel.addEventListener('mouseenter', () => { hovering = true; clearTimeout(hideTimer); });
   panel.addEventListener('mouseleave', () => { hovering = false; armHide(); });
@@ -293,9 +408,52 @@
 
   // ---------------------------------------------------------------- volume (Spotify's own mixer level)
   let volDragging = false;
-  $('vol').addEventListener('input', (e) => { volDragging = true; window.overlay.volume(+e.target.value); });
-  $('vol').addEventListener('change', () => { volDragging = false; });
-  window.overlay.on('volume', (v) => { if (!volDragging && v >= 0) $('vol').value = v; });
+  $('vol').addEventListener('input', (e) => { volDragging = true; window.overlay.volume(+e.target.value); setMeter(+e.target.value, true); });
+  $('vol').addEventListener('change', () => { volDragging = false; setMeter(+$('vol').value, false); });
+  window.overlay.on('volume', (v) => { if (!volDragging && v >= 0) { $('vol').value = v; setMeter(v, false); } });
+
+  // ---------------------------------------------------------------- VHS stereo volume meter (in the now-playing box)
+  // 12 stepped bars, green -> yellow -> red at the top, lit up to the slider's level; brighter while dragging.
+  const METER_BARS = 12;
+  for (let k = 0; k < METER_BARS; k++) {
+    const b = document.createElement('i');
+    b.style.height = Math.round(6 + (k / (METER_BARS - 1)) * 24) + 'px';
+    if (k >= METER_BARS - 2) b.classList.add('r'); else if (k >= METER_BARS - 4) b.classList.add('y');
+    $('meterBars').appendChild(b);
+  }
+  function setMeter(v, live) {
+    const lit = Math.round(Math.max(0, Math.min(1, v)) * METER_BARS);
+    [...$('meterBars').children].forEach((b, k) => b.classList.toggle('on', k < lit));
+    $('meter').classList.toggle('live', !!live);
+    $('meter').title = 'Volume ' + Math.round(v * 100) + '%';
+  }
+  setMeter(+$('vol').value, false);
+
+  // ---------------------------------------------------------------- 90s alarm clock (in the now-playing box)
+  // Red 7-segment time with a blinking colon and AM/PM lights. Ticks once a second, only while shown.
+  const SEGS = { a: '2,0.5 10,0.5 11,1.5 10,2.5 2,2.5 1,1.5', b: '11,2 12,3 12,9 11,10 10,9 10,3', c: '11,10 12,11 12,17 11,18 10,17 10,11',
+    d: '2,17.5 10,17.5 11,18.5 10,19.5 2,19.5 1,18.5', e: '1,10 2,11 2,17 1,18 0,17 0,11', f: '1,2 2,3 2,9 1,10 0,9 0,3', g: '2,9 10,9 11,10 10,11 2,11 1,10' };
+  const DIGIT = { 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcfgd', '-': 'g', ' ': '' };
+  function segText(str, h) {
+    const w = h * 0.6;
+    return [...str].map((ch) => {
+      if (ch === ':') return `<svg class="colon" width="${h * 0.18}" height="${h}" viewBox="0 0 2 20"><circle class="on" cx="1" cy="6" r="1.2"/><circle class="on" cx="1" cy="14" r="1.2"/></svg>`;
+      const lit = DIGIT[ch] ?? '';
+      return `<svg width="${w}" height="${h}" viewBox="0 0 12 20"><g transform="skewX(-6)">` +
+        Object.entries(SEGS).map(([k, p]) => `<polygon class="${lit.includes(k) ? 'on' : 'off'}" points="${p}"/>`).join('') + '</g></svg>';
+    }).join('');
+  }
+  let clockTimer = 0, shownClock = '';
+  function clockTick() {
+    const now = new Date(), h24 = now.getHours(), h = h24 % 12 || 12;
+    const time = String(h).padStart(2, ' ') + ':' + String(now.getMinutes()).padStart(2, '0');
+    if (time === shownClock) return;
+    shownClock = time;
+    $('clockTime').innerHTML = segText(time, 20);
+    $('am').classList.toggle('lit', h24 < 12); $('pm').classList.toggle('lit', h24 >= 12);
+  }
+  window.overlay.on('show', () => { clockTick(); clearInterval(clockTimer); clockTimer = setInterval(clockTick, 1000); });
+  window.overlay.on('hide', () => clearInterval(clockTimer));
 
   // ---------------------------------------------------------------- "Hey Claude" voice button
   // Click: records up to 6 s (click again to stop early). Audio stays on this PC; only the words go to Claude.

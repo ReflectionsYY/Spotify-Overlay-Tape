@@ -238,7 +238,11 @@ ipcMain.on('volume', (_e, v) => { if (Number.isFinite(v)) { startHelper(); write
 ipcMain.on('hide', hide);
 ipcMain.on('focus', () => { if (win && visible) win.focus(); });   // only for typing in the search box
 ipcMain.on('settings', openSettings);
-const LIST_URI = /^spotify:(playlist:[A-Za-z0-9]+|collection:tracks)$/;
+const LIST_URI = /^spotify:(playlist:[A-Za-z0-9]+|collection:tracks)$/, PLAY_URI = /^spotify:(playlist:[A-Za-z0-9]+|collection:tracks|artist:[A-Za-z0-9]+)$/;
+ipcMain.handle('artist-top', async (_e, name) => {
+  if (typeof name !== 'string' || !name.trim() || name.length > 200) return { items: [], next: null, error: 'failed' };
+  try { return await spotify.artistTop(name.trim()); } catch (_) { return { items: [], next: null, error: 'failed' }; }
+});
 ipcMain.handle('tracks', async (_e, uri, offset) => {
   if (!LIST_URI.test(uri) || !Number.isInteger(offset) || offset < 0) return { items: [], next: null, error: 'failed' };
   try { return await spotify.tracks(uri, offset); } catch (_) { return { items: [], next: null, error: 'failed' }; }
@@ -259,7 +263,7 @@ ipcMain.handle('shuffle', async (_e, on) => {
   return s;
 });
 ipcMain.handle('play-playlist', async (_e, uri, pos) => {
-  if (!LIST_URI.test(uri)) return false;
+  if (!PLAY_URI.test(uri)) return false;
   let ok = false; try { ok = await spotify.playPlaylist(uri, Number.isInteger(pos) && pos >= 0 ? pos : undefined); } catch (_) {}
   if (!ok) { shell.openExternal(uri); setTimeout(() => send('play'), 2500); }   // no Premium / no device: open it in the Spotify app, then press play
   return true;

@@ -105,6 +105,35 @@ function create(dataDir) {
       const items = (r.json.tracks.items || []).filter((t) => t && t.uri).map((t) => ({ uri: t.uri, album: t.album && t.album.uri, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', ') }));
       return { items, next: r.json.tracks.next && offset + 10 < 200 ? offset + 10 : null };
     },
+    // An artist's top songs for the browse view, from the artist name shown in the overlay. The artist
+    // comes from what is playing (exact id) or else a search; top tracks come from /artists/{id}/top-tracks,
+    // or - if that endpoint is closed to this app - a popularity-ordered track search for the artist.
+    async artistTop(name) {
+      let id = null, label = name;
+      const cur = await api('GET', '/me/player/currently-playing');
+      const artists = (cur.json && cur.json.item && cur.json.item.artists) || [];
+      const hit = artists.find((a) => a.name.toLowerCase() === String(name).toLowerCase()) || artists.find((a) => String(name).toLowerCase().includes(a.name.toLowerCase()));
+      if (hit) { id = hit.id; label = hit.name; }
+      if (!id) {
+        const s = await api('GET', '/search?' + new URLSearchParams({ q: name, type: 'artist', limit: '1' }));
+        const a = s.json && s.json.artists && s.json.artists.items && s.json.artists.items[0];
+        if (!a) return { items: [], next: null, error: 'failed' };
+        id = a.id; label = a.name;
+      }
+      const map = (t) => ({ uri: t.uri, album: t.album && t.album.uri, name: t.name, artist: (t.artists || []).map((a) => a.name).join(', ') });
+      const top = await api('GET', `/artists/${id}/top-tracks?market=US`);
+      let items = top.status === 200 && top.json && top.json.tracks ? top.json.tracks.filter(Boolean).map(map) : null;
+      if (!items || !items.length) {
+        items = [];
+        for (const offset of [0, 10]) {
+          const s = await api('GET', '/search?' + new URLSearchParams({ q: `artist:"${label}"`, type: 'track', limit: '10', offset: String(offset) }));
+          for (const t of ((s.json && s.json.tracks && s.json.tracks.items) || []).filter(Boolean)) {
+            if ((t.artists || []).some((a) => a.id === id) && !items.some((x) => x.name === t.name)) items.push(map(t));
+          }
+        }
+      }
+      return { name: label, uri: 'spotify:artist:' + id, items, next: null };
+    },
     // One song: played inside its album (like clicking a search result in Spotify), because a bare { uris: [song] }
     // request is accepted but often never starts on the desktop app. Then confirm it really started; if not, retry
     // once as a bare song before giving up.
