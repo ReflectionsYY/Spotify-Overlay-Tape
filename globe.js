@@ -4,28 +4,36 @@
 // earlier (so energy rolls pole to pole like an equalizer), beats kick the spin, flash the nodes and launch ripples.
 window.MusicReact = function MusicReact() {
   const history = new Float32Array(120);
-  const s = { level: 0, slow: 0, avg: 0.1, beat: 0, hue: 195, rot: 0, phase: 0, energy: 0, intensity: 1, history, ripples: [],
-    shift: 0, shiftTarget: 0, beats: 0, lastSwap: 0, base: null };
+  const s = { level: 0, raw: 0, slow: 0, hi: 0, lo: 1, mean: 0, dev: 0.05, beat: 0, hue: 195, rot: 0, phase: 0, energy: 0, intensity: 1,
+    history, ripples: [], shift: 0, shiftTarget: 0, beats: 0, lastSwap: 0, base: null };
   // Palette offsets added to the blue->purple swing: base, teal/cyan, magenta/pink, deep violet/indigo
   const PALETTES = [0, -35, 95, 55, -60];
+  // AUTO-LEVEL. Loud, compressed songs sit at 0.5-0.9 on the meter the whole time, so reacting to the raw level pinned the
+  // globe at full and starved the beat detector within ~10 s ("it stops reacting"). Instead each reading is placed inside
+  // the song's own recent range (a slowly falling ceiling and slowly rising floor), and beats are peaks above the recent
+  // average by more than its usual wobble - so loud and quiet songs both keep moving, and breakdowns still calm it down.
   s.feed = (m) => {
     const p = Math.max(m[0], m[1]);
-    s.avg += (p - s.avg) * 0.02;                                 // long-run loudness, for an adaptive beat threshold
-    if (p > s.avg * 1.35 + 0.04 && p - s.level > 0.05 && s.beat < 0.5) {
+    if (s.lo > s.hi && p > 0.01) { s.hi = s.lo = s.mean = p; }      // first sound: the range starts at this song's level
+    s.hi = Math.max(p, s.hi - 0.003); s.lo = Math.min(p, s.lo + 0.0015);
+    const n = Math.min(1, Math.max(0, (p - s.lo) / Math.max(0.14, s.hi - s.lo)));
+    s.mean += (p - s.mean) * 0.06; s.dev += (Math.abs(p - s.mean) - s.dev) * 0.04;
+    if (p > s.mean + Math.max(0.025, s.dev * 1.4) && p - s.raw > 0.015 && s.beat < 0.5) {
       s.beat = 1; s.ripples.push({ r: 0, a: 1 }); s.beats++;
       // now and then a strong beat swaps the palette: after 24+ beats and at least 15 s on the current one
       const now = performance.now();
-      if (s.beats >= 24 && now - s.lastSwap > 15000 && p > s.avg * 1.7) {
+      if (s.beats >= 24 && now - s.lastSwap > 15000 && p > s.mean + Math.max(0.06, s.dev * 2.5)) {
         let next; do { next = PALETTES[Math.floor(Math.random() * PALETTES.length)]; } while (next === s.shiftTarget);
         s.shiftTarget = next; s.beats = 0; s.lastSwap = now;
       }
     }
-    s.level = p; history.copyWithin(0, 1); history[history.length - 1] = p;
+    s.raw = p; s.level = 0.75 * n + 0.25 * p;
+    history.copyWithin(0, 1); history[history.length - 1] = s.level;
   };
   s.step = () => {
     const k = s.intensity;
     s.slow += (s.level - s.slow) * 0.12; s.beat *= 0.84;
-    s.energy = Math.min(1, s.slow * 1.8 * k);
+    s.energy = Math.min(1, s.slow * 1.25 * k);
     s.shift += (s.shiftTarget - s.shift) * 0.02;                  // palette swaps fade in over ~2 seconds
     // With an album colour (s.base) the theme sits on the cover's hue and the music only nudges it either side;
     // without one it's the original light blue (195) -> purple (280) swing, beats push further.
@@ -33,6 +41,7 @@ window.MusicReact = function MusicReact() {
       ? s.base + (s.energy - 0.35) * 28 + s.beat * 10 * k
       : 195 + 85 * s.energy + s.beat * 22 * k + s.shift;
     s.hue += ((((target - s.hue) % 360) + 540) % 360 - 180) * 0.08;  // the short way round the colour wheel
+    s.hue = (s.hue + 360) % 360;
     s.rot += 0.005 + s.energy * 0.03 + s.beat * 0.05 * k;
     s.phase += 0.08 + s.slow * 0.7;
     for (const r of s.ripples) { r.r += 0.035 + s.energy * 0.02; r.a *= 0.93; }

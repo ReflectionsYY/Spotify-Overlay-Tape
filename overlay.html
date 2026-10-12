@@ -677,7 +677,7 @@
   }
   // Tape scrub: while the progress line is dragged, a synthesised tape-shuttle sound - a chattering squeal over hiss -
   // whose pitch and loudness follow how fast you drag; dragging back (rewind) chirps higher than dragging forward.
-  // Silent while the finger is still; a soft clunk when let go. Same volume as the key clicks.
+  // Silent while the finger is still and when let go. Same volume as the key clicks.
   let scrubSnd = null;
   function scrubSoundStart() {
     if (sfxVol <= 0) return;
@@ -723,7 +723,6 @@
     const t = s.c.currentTime; s.out.gain.setTargetAtTime(0, t, 0.025);
     for (const n of s.nodes) try { n.stop(t + 0.15); } catch (_) {}
     setTimeout(() => s.out.disconnect(), 300);
-    keyClick(false);                                                 // the transport settling
   }
 
   for (const k of document.querySelectorAll('button.hw')) {
