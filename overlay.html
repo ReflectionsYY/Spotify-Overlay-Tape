@@ -104,16 +104,28 @@
   .title.marquee span { display: inline-block; animation: marquee var(--dur, 10s) ease-in-out infinite alternate; }
   @keyframes marquee { 0%, 12% { transform: translateX(0); } 88%, 100% { transform: translateX(var(--shift, 0px)); } }
   #wave { width: 100%; height: 20px; display: block; }
-  .bar { position: relative; height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); cursor: pointer; margin-top: 2px; }
-  .bar:hover { height: 7px; margin-top: 1px; }
-  .fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: var(--green); }
-  .times { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
-  .times .left { color: var(--text); font-weight: 600; }
+  /* THE TAPE: a line-art VHS cassette in the clock's glowing LED style (no fill, no backdrop) whose reels
+     turn while the music plays - and the tape really winds across: the left pack shrinks and the right
+     grows with the song, the smaller reel spinning faster. Beside it, a thick segmented LED line for
+     the song's progress (click to jump), and the time left in 7-segment digits like a VCR counter. */
+  .tape { --hue: 270; display: flex; align-items: center; gap: 9px; height: 28px; }
+  .vhs { flex: none; overflow: visible; }
+  .vhs .ln { fill: none; stroke: hsl(var(--hue) 100% 72%); stroke-width: 1.3; stroke-linecap: round; filter: drop-shadow(0 0 1.6px hsl(var(--hue) 100% 60% / .85)); }
+  .vhs .dim { opacity: .45; }
+  .vhs .pack { fill: hsl(var(--hue) 90% 55% / .2); stroke: hsl(var(--hue) 100% 72% / .5); stroke-width: .8; transition: r 900ms linear; }
+  .vhs .reel { animation: reel var(--spin, 1.2s) linear infinite; animation-play-state: paused; }
+  .tape.playing .reel { animation-play-state: running; }
+  @keyframes reel { to { transform: rotate(360deg); } }
+  .track { position: relative; flex: 1; height: 8px; border-radius: 2px; cursor: pointer; overflow: hidden; background: hsl(var(--hue) 90% 60% / .12); }
+  .track .fill { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, hsl(var(--hue) 95% 42%), hsl(var(--hue) 100% 68%));
+    box-shadow: 0 0 6px hsl(var(--hue) 100% 60% / .8); }
+  .track::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(90deg, transparent 0 5px, rgba(10,12,18,.92) 5px 7px); }
+  .track:hover { filter: brightness(1.2); }
   /* THE DECK: the transport is quiet hardware under the now-playing box - Blender-modelled satin aluminium
      keys (art/buttons.py -> media/keys/) sitting flush in dark recessed slots, like a 90s deck's transport
      row. A key sinks while pressed (and holds a beat so a quick click still reads), with a soft mechanical
      click; play and shuffle LATCH down while playing / on, the way real deck keys stay in. */
-  .deck { --hue: 270; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .deck { --hue: 270; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .slot { display: flex; padding: 3px; border-radius: 6px; background: #050608;
     box-shadow: inset 0 2px 5px rgba(0,0,0,.9), inset 0 0 0 1px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.055); }
   button.hw { position: relative; width: 50px; height: 31px; border-radius: 3px; flex: none;
@@ -176,8 +188,19 @@
         <div class="meter" id="meter" title="Volume"><span class="lbl">VOL</span><div class="bars" id="meterBars"></div></div>
       </div>
       <canvas id="wave"></canvas>
-      <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
-      <div class="times"><span id="pos">0:00</span><span class="left" id="left">-0:00</span></div>
+      <div class="tape" id="tape">
+        <svg class="vhs" viewBox="0 0 64 36" width="50" height="28" aria-hidden="true">
+          <rect class="ln" x="1" y="1" width="62" height="34" rx="3"/>
+          <rect class="ln dim" x="7" y="4.5" width="50" height="5" rx="1"/>
+          <rect class="ln" x="13" y="13" width="38" height="17" rx="2"/>
+          <circle class="pack" id="packL" cx="23" cy="21.5" r="6"/><circle class="pack" id="packR" cx="41" cy="21.5" r="3"/>
+          <g class="reel" id="reelL" style="transform-origin: 23px 21.5px"><circle class="ln" cx="23" cy="21.5" r="2.4"/><path class="ln" d="M23 19.1v4.8M20.6 21.5h4.8"/></g>
+          <g class="reel" id="reelR" style="transform-origin: 41px 21.5px"><circle class="ln" cx="41" cy="21.5" r="2.4"/><path class="ln" d="M41 19.1v4.8M38.6 21.5h4.8"/></g>
+          <path class="ln dim" d="M5 32.5h54"/>
+        </svg>
+        <div class="track" id="bar" title="Click to jump"><div class="fill" id="fill"></div></div>
+        <div class="seg" id="tapeTime" title="Time left"></div>
+      </div>
       <div class="deck" id="deck">
         <div class="slot">
           <button class="hw shuf" id="shuf" title="Shuffle" style="--up:url(media/keys/shuffle.png);--down:url(media/keys/shuffle-down.png)"><span class="led"></span></button>
@@ -202,10 +225,23 @@
   let st = null, stAt = 0, hideTimer = null, autoHide = 8, hovering = false, raf = 0, lastDraw = 0;
 
   function render() {
-    if (!st || !st.active) { setTitle('Nothing playing'); if (!voiceText) $('artist').textContent = 'Open Spotify and press play'; $('fill').style.width = '0'; $('pos').textContent = '0:00'; $('left').textContent = '-0:00'; return; }
+    if (!st || !st.active) { setTitle('Nothing playing'); if (!voiceText) $('artist').textContent = 'Open Spotify and press play'; $('fill').style.width = '0'; tapeShow(0, 0, false); return; }
     const pos = Math.min(st.duration, st.position + (st.playing ? (performance.now() - stAt) / 1000 : 0));
     $('fill').style.width = (st.duration ? pos / st.duration * 100 : 0) + '%';
-    $('pos').textContent = fmt(pos); $('left').textContent = '-' + fmt(st.duration - pos);
+    tapeShow(st.duration ? pos / st.duration : 0, Math.max(0, st.duration - pos), st.playing);
+  }
+  // the tape readout: counter digits and reel sizes only change once a second, so they're redrawn only then
+  let tapeLeft = -1, tapePlaying = null;
+  function tapeShow(p, left, playing) {
+    if (playing !== tapePlaying) { tapePlaying = playing; $('tape').classList.toggle('playing', !!playing); }
+    const s = Math.round(left);
+    if (s === tapeLeft) return;
+    tapeLeft = s;
+    $('tapeTime').innerHTML = segText(fmt(s), 14);
+    const rL = 3 + 5.5 * (1 - p), rR = 3 + 5.5 * p;               // tape winds from the left pack onto the right
+    $('packL').setAttribute('r', rL.toFixed(2)); $('packR').setAttribute('r', rR.toFixed(2));
+    $('reelL').style.setProperty('--spin', (0.35 + rL * 0.12).toFixed(2) + 's');   // the smaller pack turns faster
+    $('reelR').style.setProperty('--spin', (0.35 + rR * 0.12).toFixed(2) + 's');
   }
 
   // ---------------------------------------------------------------- music-driven visuals
@@ -258,7 +294,7 @@
       if (Math.abs(v.playbackRate - starRate) > 0.04) v.playbackRate = starRate;
       if (starHue === null || Math.abs(hue - starHue) > 3) v.style.filter = `sepia(.5) saturate(2.4) hue-rotate(${hue}deg) brightness(1.15)`;
     }
-    if (starHue === null || Math.abs(hue - starHue) > 3) { starHue = hue; npBox.style.setProperty('--hue', Math.round(react.hue)); $('deck').style.setProperty('--hue', Math.round(react.hue)); }  // clock, meter, title, deck LEDs follow the globe
+    if (starHue === null || Math.abs(hue - starHue) > 3) { starHue = hue; npBox.style.setProperty('--hue', Math.round(react.hue)); $('deck').style.setProperty('--hue', Math.round(react.hue)); $('tape').style.setProperty('--hue', Math.round(react.hue)); }  // clock, meter, title, deck LEDs follow the globe
     // the meter's bar stutter and grain follow the music: still when it's quiet, shaking on loud passages and beats
     const amp = Math.min(1.6, react.energy * 1.4 + react.beat * 0.8);
     meterAmp += (amp - meterAmp) * 0.5;
