@@ -51,6 +51,8 @@
   .now { flex: 1; display: flex; align-items: stretch; gap: 14px; padding: 10px 16px 10px 12px; min-width: 0; }
   /* the art is as tall as everything beside it (title box down to the controls) and stays square */
   .art { height: auto; aspect-ratio: 1 / 1; border-radius: 10px; flex: none; align-self: stretch; background: #22252a center/cover no-repeat; transition: opacity 160ms ease-out; }
+  .art { position: relative; overflow: hidden; }
+  .art .iris { position: absolute; inset: 0; background: center / cover no-repeat; }
   .art.waiting { opacity: .45; }   /* the song changed and its cover is still on the way - dim the old one rather than show a wrong one */
   .info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
   /* the now-playing box: title + artist over a little window of the Windows 98 starfield */
@@ -107,21 +109,20 @@
   .fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: var(--green); }
   .times { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
   .times .left { color: var(--text); font-weight: 600; }
-  /* THE DECK: the transport as a row of Blender-modelled brushed-silver hi-fi keys (art/buttons.py ->
-     media/keys/), in the same grimy bezel and starfield as the now-playing box above it. Each key swaps
-     to its pressed render while held; shuffle and the mic carry a small LED in the globe's colour. */
-  .deck { --hue: 270; position: relative; overflow: hidden; isolation: isolate; display: flex; align-items: center; gap: 6px;
-    border: 7px solid transparent; border-image: url(media/frame.png) 48 / 24px stretch; padding: 2px 6px; }
-  .deck .stars { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; opacity: .7; pointer-events: none; border-radius: 4px; }
-  .deck-gap { flex: 1; }
-  button.hw { position: relative; width: 50px; height: 31px; border-radius: 5px; flex: none;
+  /* THE DECK: the transport is quiet hardware under the now-playing box - Blender-modelled satin aluminium
+     keys (art/buttons.py -> media/keys/) sitting flush in dark recessed slots, like a 90s deck's transport
+     row. A key sinks while pressed (and holds a beat so a quick click still reads), with a soft mechanical
+     click; play and shuffle LATCH down while playing / on, the way real deck keys stay in. */
+  .deck { --hue: 270; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .slot { display: flex; padding: 3px; border-radius: 6px; background: #050608;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,.9), inset 0 0 0 1px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.055); }
+  button.hw { position: relative; width: 50px; height: 31px; border-radius: 3px; flex: none;
     background: var(--up) center / 100% 100% no-repeat, var(--down) 0 0 / 0 0 no-repeat;   /* 2nd layer preloads the pressed image */
-    transition: none; filter: brightness(1.18) contrast(1.06); }
-  button.hw:hover { background-color: transparent; filter: brightness(1.3) contrast(1.06); }
-  button.hw:active, button.hw.held { transform: none; background-image: var(--down); }
-  button.hw.play { width: 62px; }
-  .hw .led { position: absolute; top: 4px; right: 6px; width: 4px; height: 4px; border-radius: 50%; background: rgba(0,0,0,.35); box-shadow: inset 0 1px 1px rgba(0,0,0,.5); }
-  .shuf.on .led { background: hsl(var(--hue) 100% 64%); box-shadow: 0 0 4px hsl(var(--hue) 100% 60%), 0 0 1px #fff; }
+    transition: none; }
+  button.hw:hover { background-color: transparent; filter: brightness(1.12); }
+  button.hw:active, button.hw.held, button.hw.latched { transform: none; background-image: var(--down); }
+  .hw .led { position: absolute; top: 4px; right: 5px; width: 4px; height: 4px; border-radius: 50%; background: rgba(0,0,0,.45); box-shadow: inset 0 1px 1px rgba(0,0,0,.6); }
+  .shuf.on .led, #play.latched .led { background: hsl(var(--hue) 100% 64%); box-shadow: 0 0 4px hsl(var(--hue) 100% 60%), 0 0 1px #fff; }
   .mic.rec .led { background: #ff4b3a; box-shadow: 0 0 5px #ff4b3a; animation: pulse 1s ease-in-out infinite; }
   .mic.busy .led { background: hsl(var(--hue) 100% 64%); box-shadow: 0 0 4px hsl(var(--hue) 100% 60%); }
   .no-api .shuf { display: none; }
@@ -178,14 +179,16 @@
       <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
       <div class="times"><span id="pos">0:00</span><span class="left" id="left">-0:00</span></div>
       <div class="deck" id="deck">
-        <video class="stars" src="media/stars-strip.mp4" muted loop playsinline preload="auto"></video>
-        <button class="hw shuf" id="shuf" title="Shuffle" style="--up:url(media/keys/shuffle.png);--down:url(media/keys/shuffle-down.png)"><span class="led"></span></button>
-        <button class="hw" id="prev" title="Previous" style="--up:url(media/keys/prev.png);--down:url(media/keys/prev-down.png)"></button>
-        <button class="hw play" id="play" title="Play / pause" style="--up:url(media/keys/play.png);--down:url(media/keys/play-down.png)"></button>
-        <button class="hw" id="next" title="Skip" style="--up:url(media/keys/next.png);--down:url(media/keys/next-down.png)"></button>
-        <span class="deck-gap"></span>
-        <button class="hw mic" id="mic" title="Hey Claude: click, say what to play, click again (or wait)" style="--up:url(media/keys/mic.png);--down:url(media/keys/mic-down.png)"><span class="led"></span></button>
-        <button class="hw" id="gear" title="Settings" style="--up:url(media/keys/gear.png);--down:url(media/keys/gear-down.png)"></button>
+        <div class="slot">
+          <button class="hw shuf" id="shuf" title="Shuffle" style="--up:url(media/keys/shuffle.png);--down:url(media/keys/shuffle-down.png)"><span class="led"></span></button>
+          <button class="hw" id="prev" title="Previous" style="--up:url(media/keys/prev.png);--down:url(media/keys/prev-down.png)"></button>
+          <button class="hw" id="play" title="Play / pause" style="--up:url(media/keys/playpause.png);--down:url(media/keys/playpause-down.png)"><span class="led"></span></button>
+          <button class="hw" id="next" title="Skip" style="--up:url(media/keys/next.png);--down:url(media/keys/next-down.png)"></button>
+        </div>
+        <div class="slot">
+          <button class="hw mic" id="mic" title="Hey Claude: click, say what to play, click again (or wait)" style="--up:url(media/keys/mic.png);--down:url(media/keys/mic-down.png)"><span class="led"></span></button>
+          <button class="hw" id="gear" title="Settings" style="--up:url(media/keys/gear.png);--down:url(media/keys/gear-down.png)"></button>
+        </div>
       </div>
     </div>
   </div>
@@ -243,7 +246,7 @@
   // Two tiny seamless 24 s loops (media/), playing only while the overlay is shown. They react to the
   // music: loud passages push the stars toward warp speed, and they take on a light tint of the globe's
   // colour. Updated a few times a second, not every frame.
-  const stars = [$('starsNp'), $('starsViz'), document.querySelector('.deck .stars')];
+  const stars = [$('starsNp'), $('starsViz')];
   let starRate = 1, starHue = null, lastStarTick = 0;
   function starsTick(t) {
     if (t - lastStarTick < 200) return;
@@ -289,7 +292,7 @@
     if (pickedHold && (s.title === pickedHold.title || Date.now() > pickedHold.until)) pickedHold = null;
     if (s.active && !pickedHold) {   // while a just-clicked song is starting, keep showing it instead of flicking back
       setTitle(s.title || 'Unknown'); if (!voiceText) $('artist').textContent = s.artist || '';
-      if (s.art) { if (s.art !== shownArt) { shownArt = s.art; $('art').style.backgroundImage = `url("${s.art}")`; } $('art').classList.remove('waiting'); }
+      if (s.art) { setArt(s.art); $('art').classList.remove('waiting'); }
       else $('art').classList.toggle('waiting', !!shownArt);
     }
     if (s.active) setPlayKey(s.playing);
@@ -349,12 +352,31 @@
   // A clicked song shows in the box at once (name, artist, cover from the list) instead of after Spotify
   // confirms it; the real state that follows carries the same values. Opened playlists are remembered
   // for 5 minutes so going back into one is instant. Covers the app prefetches are warmed here.
-  let shownArt = '', pickedHold = null;
+  let shownArt = '', pickedHold = null, irisToken = 0;
+  // A new cover opens over the old one in a Star Wars iris wipe: a hard-edged circle growing from the
+  // centre. It waits for the image to decode first so the wipe never reveals an empty square, and a
+  // newer cover arriving mid-wipe simply takes over.
+  function setArt(url) {
+    if (!url || url === shownArt) return;
+    const first = !shownArt; shownArt = url;
+    const art = $('art'), token = ++irisToken, im = new Image();
+    im.src = url;
+    im.decode().catch(() => {}).then(() => {
+      if (token !== irisToken) return;
+      if (first) { art.style.backgroundImage = `url("${url}")`; return; }
+      art.querySelectorAll('.iris').forEach((n) => n.remove());
+      const layer = document.createElement('div');
+      layer.className = 'iris'; layer.style.backgroundImage = `url("${url}")`;
+      art.appendChild(layer);
+      const a = layer.animate([{ clipPath: 'circle(0% at 50% 50%)' }, { clipPath: 'circle(72% at 50% 50%)' }], { duration: 560, easing: 'cubic-bezier(.55,0,.35,1)', fill: 'forwards' });
+      a.onfinish = () => { if (token === irisToken) art.style.backgroundImage = `url("${url}")`; layer.remove(); };
+    });
+  }
   function showPicked(t, row) {
     pickedHold = { title: t.name, until: Date.now() + 2500 };
     setTitle(t.name);
     if (!voiceText) $('artist').textContent = t.artist;
-    if (t.img) { shownArt = t.img; $('art').style.backgroundImage = `url("${t.img}")`; $('art').classList.remove('waiting'); window.overlay.artHint(t.name, t.img); }
+    if (t.img) { setArt(t.img); $('art').classList.remove('waiting'); window.overlay.artHint(t.name, t.img); }
     for (const r of $('tracks').children) r.classList.toggle('cur', r === row);
   }
   const trackPages = new Map();   // "uri|offset" -> { at, page }
@@ -412,7 +434,7 @@
 
   // ---------------------------------------------------------------- shuffle (Spotify's own shuffle setting)
   let shuffleOn = false;
-  function setShuf(on) { shuffleOn = on; $('shuf').classList.toggle('on', on); $('shuf').title = on ? 'Shuffle: on' : 'Shuffle: off'; }
+  function setShuf(on) { shuffleOn = on; $('shuf').classList.toggle('on', on); $('shuf').classList.toggle('latched', on); $('shuf').title = on ? 'Shuffle: on' : 'Shuffle: off'; }
   window.overlay.on('shuffle', setShuf);
   $('shuf').onclick = async () => { const want = !shuffleOn; setShuf(want); if ((await window.overlay.shuffle(want)) === null) setShuf(!want); };
   window.overlay.on('playlists', (items) => {
@@ -449,13 +471,38 @@
   $('prev').onclick = () => window.overlay.cmd('prev');
   $('next').onclick = () => window.overlay.cmd('next');
   $('play').onclick = () => { if (st) { st.playing = !st.playing; setPlayKey(st.playing); } window.overlay.cmd('toggle'); };
-  // the play key shows pause while music plays (its own up/down renders)
-  let playKeyShows = null;
-  function setPlayKey(playing) {
-    const k = playing ? 'pause' : 'play';
-    if (k === playKeyShows) return;
-    playKeyShows = k;
-    $('play').style.setProperty('--up', `url(media/keys/${k}.png)`); $('play').style.setProperty('--down', `url(media/keys/${k}-down.png)`);
+  // the ▶❚❚ key latches down (LED lit) while music plays, like a deck's play key
+  function setPlayKey(playing) { $('play').classList.toggle('latched', !!playing); }
+
+  // Key feel: a pressed key holds its sunk render for at least 110 ms (a quick click still reads as a
+  // press) and makes a soft mechanical click - a filtered noise tick over a low thump, synthesised, at the
+  // open/close sound level - a firmer one going down and a lighter one coming back up.
+  let clickCtx = null;
+  function keyClick(down) {
+    if (sfxVol <= 0) return;
+    try {
+      if (!clickCtx) clickCtx = new AudioContext({ latencyHint: 'interactive' });
+      const c = clickCtx, t = c.currentTime, lvl = sfxVol * (down ? 0.9 : 0.45);
+      const n = c.createBuffer(1, Math.round(c.sampleRate * 0.012), c.sampleRate), d = n.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+      const tick = c.createBufferSource(), bp = c.createBiquadFilter(), g1 = c.createGain();
+      tick.buffer = n; bp.type = 'bandpass'; bp.frequency.value = down ? 2600 : 3400; bp.Q.value = 1.2; g1.gain.value = lvl;
+      tick.connect(bp).connect(g1).connect(c.destination); tick.start(t);
+      const thump = c.createOscillator(), g2 = c.createGain();
+      thump.frequency.setValueAtTime(down ? 120 : 160, t); thump.frequency.exponentialRampToValueAtTime(60, t + 0.03);
+      g2.gain.setValueAtTime(lvl * 0.6, t); g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
+      thump.connect(g2).connect(c.destination); thump.start(t); thump.stop(t + 0.04);
+    } catch (_) {}
+  }
+  for (const k of document.querySelectorAll('button.hw')) {
+    let downAt = 0;
+    k.addEventListener('pointerdown', () => { downAt = performance.now(); k.classList.add('held'); keyClick(true); });
+    const up = () => {
+      if (!k.classList.contains('held')) return;
+      setTimeout(() => k.classList.remove('held'), Math.max(0, 110 - (performance.now() - downAt)));
+      keyClick(false);
+    };
+    k.addEventListener('pointerup', up); k.addEventListener('pointerleave', up); k.addEventListener('pointercancel', up);
   }
   $('gear').onclick = () => window.overlay.settings();
   $('bar').onclick = (e) => { if (!st || !st.duration) return; const r = e.currentTarget.getBoundingClientRect(); window.overlay.seek((e.clientX - r.left) / r.width * st.duration); };
