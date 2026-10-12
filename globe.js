@@ -5,7 +5,7 @@
 window.MusicReact = function MusicReact() {
   const history = new Float32Array(120);
   const s = { level: 0, slow: 0, avg: 0.1, beat: 0, hue: 195, rot: 0, phase: 0, energy: 0, intensity: 1, history, ripples: [],
-    shift: 0, shiftTarget: 0, beats: 0, lastSwap: 0 };
+    shift: 0, shiftTarget: 0, beats: 0, lastSwap: 0, base: null };
   // Palette offsets added to the blue->purple swing: base, teal/cyan, magenta/pink, deep violet/indigo
   const PALETTES = [0, -35, 95, 55, -60];
   s.feed = (m) => {
@@ -27,8 +27,12 @@ window.MusicReact = function MusicReact() {
     s.slow += (s.level - s.slow) * 0.12; s.beat *= 0.84;
     s.energy = Math.min(1, s.slow * 1.8 * k);
     s.shift += (s.shiftTarget - s.shift) * 0.02;                  // palette swaps fade in over ~2 seconds
-    const target = 195 + 85 * s.energy + s.beat * 22 * k + s.shift;  // light blue (195) -> purple (280), beats push further
-    s.hue += (target - s.hue) * 0.08;
+    // With an album colour (s.base) the theme sits on the cover's hue and the music only nudges it either side;
+    // without one it's the original light blue (195) -> purple (280) swing, beats push further.
+    const target = s.base != null
+      ? s.base + (s.energy - 0.35) * 28 + s.beat * 10 * k
+      : 195 + 85 * s.energy + s.beat * 22 * k + s.shift;
+    s.hue += ((((target - s.hue) % 360) + 540) % 360 - 180) * 0.08;  // the short way round the colour wheel
     s.rot += 0.005 + s.energy * 0.03 + s.beat * 0.05 * k;
     s.phase += 0.08 + s.slow * 0.7;
     for (const r of s.ripples) { r.r += 0.035 + s.energy * 0.02; r.a *= 0.93; }

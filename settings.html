@@ -94,6 +94,7 @@
   <div class="card">
     <div class="row"><div>Open / close sound<div class="hint">Plays when the overlay slides in and out. 0 turns it off.</div></div><input type="range" id="sfxVolume" min="0" max="1" step="0.05"><span id="sfxVolumeV" style="width:32px;text-align:right"></span></div>
     <div class="row"><div>Music reaction strength<div class="hint">How hard the globe and waveform react to the music.</div></div><input type="range" id="intensity" min="0.4" max="2" step="0.1"><span id="intensityV" style="width:32px;text-align:right"></span></div>
+    <div class="row"><div>Colour from the album art<div class="hint">The whole theme takes the main colour of the song's cover, and the music shifts it slightly. Off: the colour follows the music (blue to purple). Needs Spotify connected.</div></div><label class="switch"><input type="checkbox" id="colorFromArt"><span></span></label></div>
   </div>
 
   <h2>Corner globe</h2>
@@ -117,6 +118,7 @@
     $('showPlaylists').checked = c.showPlaylists; $('claudeVoice').checked = c.claudeVoice; $('withSpotify').checked = c.withSpotify;
     $('sfxVolume').value = c.sfxVolume; $('sfxVolumeV').textContent = Math.round(c.sfxVolume * 100) + '%';
     $('intensity').value = c.intensity; $('intensityV').textContent = (+c.intensity).toFixed(1) + 'x';
+    $('colorFromArt').checked = c.colorFromArt;
     $('cEnabled').checked = c.corner.enabled; $('cCorner').value = c.corner.corner; $('cSize').value = c.corner.size; $('cSizeV').textContent = c.corner.size + 'px';
     $('cOpacity').value = c.corner.opacity; $('cOpacityV').textContent = Math.round(c.corner.opacity * 100) + '%'; $('cOnly').checked = c.corner.onlyWhilePlaying;
     document.querySelectorAll('input[type=range]').forEach(paintRange);
@@ -153,6 +155,7 @@
   $('withSpotify').onchange = (e) => set({ withSpotify: e.target.checked });
   $('sfxVolume').oninput = (e) => { $('sfxVolumeV').textContent = Math.round(e.target.value * 100) + '%'; }; $('sfxVolume').onchange = (e) => set({ sfxVolume: +e.target.value });
   $('intensity').oninput =(e) => { $('intensityV').textContent = (+e.target.value).toFixed(1) + 'x'; }; $('intensity').onchange = (e) => set({ intensity: +e.target.value });
+  $('colorFromArt').onchange = (e) => set({ colorFromArt: e.target.checked });
   $('cEnabled').onchange = (e) => set({ corner: { enabled: e.target.checked } });
   $('cCorner').onchange = (e) => set({ corner: { corner: e.target.value } });
   $('cSize').oninput = (e) => { $('cSizeV').textContent = e.target.value + 'px'; }; $('cSize').onchange = (e) => set({ corner: { size: +e.target.value } });

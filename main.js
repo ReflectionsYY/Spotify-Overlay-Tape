@@ -10,7 +10,7 @@ if (process.argv.includes('quit-now')) { app.quit(); return; }   // the watcher 
 app.setAppUserModelId('com.collin.spotifyoverlay');
 
 const DATA = app.getPath('userData'), CFG_FILE = path.join(DATA, 'settings.json');
-const DEFAULTS = { hotkey: 'F8', clientId: '', autoHideSeconds: 8, position: 'top-center', showPlaylists: true, intensity: 1, claudeVoice: true, sfxVolume: 0.35,
+const DEFAULTS = { hotkey: 'F8', clientId: '', autoHideSeconds: 8, position: 'top-center', showPlaylists: true, intensity: 1, claudeVoice: true, sfxVolume: 0.35, colorFromArt: true,
   corner: { enabled: false, corner: 'top-right', size: 180, opacity: 0.9, onlyWhilePlaying: true } };
 const cfg = (() => { let saved = {}; try { saved = JSON.parse(fs.readFileSync(CFG_FILE, 'utf8')); } catch (_) {}
   return Object.assign({}, DEFAULTS, saved, { corner: Object.assign({}, DEFAULTS.corner, saved.corner || {}) }); })();
@@ -34,12 +34,13 @@ function startHelper() {
       if (!line) continue;
       let msg; try { msg = JSON.parse(line); } catch (_) { continue; }
       if (msg.ready) continue;
-      if (msg.m) { if (win && visible) win.webContents.send('meter', msg.m); if (cornerWin) cornerWin.webContents.send('meter', msg.m); continue; }
+      if (msg.m) { lastMeterAt = Date.now(); if (win && visible) win.webContents.send('meter', msg.m); if (cornerWin) cornerWin.webContents.send('meter', msg.m); continue; }
       if ('vol' in msg) { volume = msg.vol; if (win) win.webContents.send('volume', volume); continue; }
       if ('active' in msg) onState(msg);
     }
   });
-  helper.on('exit', () => { helper = null; });
+  const me = helper;
+  helper.on('exit', () => { if (helper === me) helper = null; });   // a replaced helper exiting late mustn't drop the new one
   write('state'); write('vol get');
   if (needMeter()) write('meter on');
 }
@@ -48,6 +49,18 @@ function stopHelper() { if (helper && !cornerWin) { write('quit'); setTimeout(()
 // a command, then quick re-reads so a skip / play shows within a fraction of a second, not on the next poll
 function send(cmd) { startHelper(); write(cmd); for (const ms of [120, 350, 800]) setTimeout(() => write('state'), ms); }
 const needMeter = () => visible || !!cornerWin;
+// Watchdog: the meter sends ~30 readings a second while it's on. If they stop while something is showing the globe
+// (the helper crashed or hung), start it again instead of leaving the globe frozen until the next F8.
+let lastMeterAt = 0;
+setInterval(() => {
+  if (!needMeter()) return;
+  if (!helper) { startHelper(); write('meter on'); return; }
+  if (lastMeterAt && Date.now() - lastMeterAt > 3000) {
+    lastMeterAt = 0; const h = helper; helper = null;
+    try { h.kill(); } catch (_) {}
+    startHelper(); write('meter on');
+  }
+}, 2000);
 
 /* ALBUM ART, FAST AND RIGHT. Windows (GSMTC) knows the new song instantly but carries no art we can use, and
    the Web API lags the app by up to a second after a change - asked too early it returns the PREVIOUS song.
@@ -84,9 +97,51 @@ async function onState(s) {
   }
   push();
 }
+/* THE ALBUM'S COLOUR. The cover is shrunk to 32x32 and every pixel votes for its hue, weighted by how vivid it is
+   (grey, near-black and near-white pixels barely count), so a mostly-black cover with a red logo comes out red.
+   The winning hue becomes the theme; the music still swings it a little. Covers with no real colour give null and
+   the theme falls back to the music-driven blue-purple. One fetch per cover, remembered. */
+const artHues = new Map();
+function hueOfBitmap(bgra, n) {
+  const bins = new Float32Array(36);
+  for (let i = 0; i < n; i++) {
+    const b = bgra[i * 4] / 255, g = bgra[i * 4 + 1] / 255, r = bgra[i * 4 + 2] / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), c = max - min;
+    if (c < 0.12 || max < 0.18) continue;                       // grey or too dark to have a colour
+    let h = max === r ? ((g - b) / c) % 6 : max === g ? (b - r) / c + 2 : (r - g) / c + 4;
+    h = (h * 60 + 360) % 360;
+    const sat = c / max, w = sat * sat * max * (1 - Math.abs(max - 0.7) * 0.6);
+    bins[Math.floor(h / 10) % 36] += w;
+  }
+  let best = -1, bestW = 0, total = 0;
+  for (let k = 0; k < 36; k++) {                                // smooth over neighbours so a gradient counts as one colour
+    const w = bins[(k + 35) % 36] * 0.5 + bins[k] + bins[(k + 1) % 36] * 0.5;
+    total += bins[k]; if (w > bestW) { bestW = w; best = k; }
+  }
+  if (best < 0 || total < n * 0.012) return null;               // nothing colourful enough on the cover
+  const a = bins[(best + 35) % 36], b = bins[best], c2 = bins[(best + 1) % 36];
+  return Math.round((best * 10 + 5 + ((c2 - a) / Math.max(1e-6, a + b + c2)) * 10 + 360) % 360);
+}
+async function artHue(url) {
+  if (!url) return null;
+  if (artHues.has(url)) return artHues.get(url);
+  try {
+    const buf = Buffer.from(await (await fetch(url)).arrayBuffer());
+    const img = nativeImage.createFromBuffer(buf).resize({ width: 32, height: 32, quality: 'good' });
+    const hue = hueOfBitmap(img.toBitmap(), 32 * 32);
+    artHues.set(url, hue); if (artHues.size > 300) artHues.delete(artHues.keys().next().value);
+    return hue;
+  } catch (_) { return null; }
+}
+let shownArtHue = { url: '', hue: null };
 function push() {
   if (!lastState) return;
-  const s = Object.assign({}, lastState, { art: artCache.url, connected: spotify.connected });
+  const url = artCache.url;
+  if (cfg.colorFromArt && url && shownArtHue.url !== url) {
+    shownArtHue = { url, hue: artHues.has(url) ? artHues.get(url) : shownArtHue.hue };
+    if (!artHues.has(url)) artHue(url).then((h) => { if (shownArtHue.url === url) { shownArtHue.hue = h; push(); } });
+  }
+  const s = Object.assign({}, lastState, { art: url, connected: spotify.connected, artHue: cfg.colorFromArt ? shownArtHue.hue : null });
   if (win) win.webContents.send('state', s);
   if (cornerWin) cornerWin.webContents.send('state', s);
 }
@@ -313,6 +368,7 @@ ipcMain.handle('settings-set', (_e, patch) => {
   if ('claudeVoice' in p) cfg.claudeVoice = !!p.claudeVoice;
   if ('sfxVolume' in p) cfg.sfxVolume = Math.max(0, Math.min(1, +p.sfxVolume || 0));
   if ('intensity' in p) cfg.intensity =Math.max(0.4, Math.min(2, +p.intensity || 1));
+  if ('colorFromArt' in p) { cfg.colorFromArt = !!p.colorFromArt; shownArtHue = { url: '', hue: null }; push(); }
   if ('withSpotify' in p) setWithSpotify(!!p.withSpotify);
   if (p.corner) {
     const c = p.corner, cur = cfg.corner;

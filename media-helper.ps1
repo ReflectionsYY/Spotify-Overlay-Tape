@@ -83,7 +83,9 @@ namespace SpotMeter {
       List<IAudioMeterInformation> meters = null; int tick = 0; var ci = CultureInfo.InvariantCulture;
       while (run) {
         try {
-          if (meters == null || meters.Count == 0) { if (tick % 30 == 0) meters = Find(proc); }
+          // look for Spotify's audio sessions again every second: Spotify can drop its session and open a new one (new
+          // stream, output device switch), and a dead session just reads 0 forever without throwing
+          if (tick % 30 == 0 || meters == null) meters = Find(proc);
           float l = 0, r = 0;
           if (meters != null) foreach (var m in meters) {
             int c; m.GetMeteringChannelCount(out c);
