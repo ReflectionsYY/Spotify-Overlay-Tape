@@ -439,8 +439,6 @@
     const canBrowse = !!(s.connected && s.active && s.artist && !voiceText && !document.body.classList.contains('no-lists'));
     $('artist').classList.toggle('link', canBrowse); $('artist').title = canBrowse ? 'Show ' + s.artist + "'s top songs" : '';
     if (s.title !== lastTitle) { lastTitle = s.title; markCurrent(); clearTimeout(likeTimer); likeTimer = setTimeout(refreshLike, 900); }
-    if (s.active && prevPlaying !== null && s.playing !== prevPlaying && document.querySelector('.panel.in')) tapeSound(s.playing);
-    prevPlaying = s.active ? !!s.playing : null;
     render();
   });
 
@@ -628,7 +626,7 @@
   function setPlayKey(playing) { $('play').classList.toggle('latched', !!playing); }
 
   // LIKE: the key stays pressed in (LED lit) while the playing song is in Liked Songs; a press toggles it.
-  let likeInfo = { id: null, liked: false }, likeTimer = 0, prevPlaying = null;
+  let likeInfo = { id: null, liked: false }, likeTimer = 0;
   function setLikeKey(on) { $('like').classList.toggle('latched', on); $('like').classList.toggle('on', on); $('like').title = on ? 'Liked - press to unlike' : 'Like this song'; }
   async function refreshLike() {
     if (!st || !st.connected || !st.active) return;
@@ -643,48 +641,6 @@
     if (r && r.ok) likeInfo.liked = want;
     else { setLikeKey(likeInfo.liked); if (r && r.error === 'reconnect') status('Reconnect Spotify in Settings once to use LIKE'); }
   };
-
-  // Tape-deck mechanics, like a VCR loading a cassette - built sample by sample (no files, no plain tones)
-  // at the open/close sound level, only while the overlay is up:
-  //   play: the mechanism engages (clunk), a gear ratchet speeds up over a filtered-noise motor spinning up,
-  //         then the latch seats (clunk + click);
-  //   stop: the latch releases (click + clunk), the ratchet slows as the motor winds off, a final thunk.
-  // Each sound is rendered once into a buffer and reused.
-  const tapeBufs = {};
-  function tapeBuffer(c, playing) {
-    const sr = c.sampleRate, dur = playing ? 0.78 : 0.56, n = Math.round(sr * dur);
-    const buf = c.createBuffer(1, n, sr), d = buf.getChannelData(0);
-    let seed = playing ? 11 : 23; const rnd = () => (seed = (seed * 16807) % 2147483647) / 1073741823.5 - 1;
-    const add = (t0, len, fn) => { const s0 = Math.round(t0 * sr); for (let i = 0; i < Math.round(len * sr) && s0 + i < n; i++) d[s0 + i] += fn(i / sr); };
-    // a heavy part landing: a falling low thump inside a lowpassed noise knock
-    const clunk = (t0, amp) => { let lp = 0; add(t0, 0.12, (t) => { lp += 0.09 * (rnd() - lp); const f = 75 * Math.exp(-t * 9);
-      return amp * Math.exp(-t * 42) * (0.65 * Math.sin(2 * Math.PI * f * t) + 1.7 * lp); }); };
-    // a small hard part: a 6 ms bright tick (differentiated noise)
-    const click = (t0, amp) => { let prev = 0; add(t0, 0.006, (t) => { const x = rnd(), hp = x - prev; prev = x; return amp * Math.exp(-t * 800) * hp; }); };
-    // gear teeth: a train of ticks whose rate sweeps from r0 to r1 per second
-    const ratchet = (t0, t1, r0, r1, amp) => { for (let t = t0; t < t1;) { const p = (t - t0) / (t1 - t0); click(t, amp * (0.55 + 0.45 * Math.abs(rnd()))); t += 1 / (r0 + (r1 - r0) * p); } };
-    // the motor: band-limited noise with a gear-mesh flutter that rises (spin up) or falls (wind off)
-    const motor = (t0, len, amp, up) => { let a = 0, b = 0; add(t0, len, (t) => { const x = rnd(); a += 0.22 * (x - a); b += 0.035 * (a - b);
-      const env = up ? Math.min(1, t / 0.14) * Math.min(1, (len - t) / 0.12) : Math.min(1, t / 0.02) * Math.min(1, (len - t) / 0.28);
-      const flutter = 0.65 + 0.35 * Math.sin(2 * Math.PI * (up ? 22 + 46 * t / len : 66 - 44 * t / len) * t);
-      return amp * env * flutter * (a - b) * 3.2; }); };
-    if (playing) { clunk(0, 0.6); motor(0.05, 0.58, 0.32, true); ratchet(0.07, 0.52, 16, 48, 0.2); clunk(0.62, 0.32); click(0.64, 0.42); }
-    else { click(0, 0.4); clunk(0.015, 0.55); motor(0.04, 0.4, 0.28, false); ratchet(0.05, 0.36, 44, 14, 0.17); clunk(0.44, 0.38); }
-    let pk = 0; for (let i = 0; i < n; i++) pk = Math.max(pk, Math.abs(d[i]));
-    if (pk > 0) for (let i = 0; i < n; i++) d[i] *= 0.9 / pk;
-    return buf;
-  }
-  function tapeSound(playing) {
-    if (sfxVol <= 0) return;
-    try {
-      if (!clickCtx) clickCtx = new AudioContext({ latencyHint: 'interactive' });
-      const c = clickCtx, k = playing ? 'play' : 'stop';
-      if (!tapeBufs[k]) tapeBufs[k] = tapeBuffer(c, playing);
-      const src = c.createBufferSource(), g = c.createGain();
-      src.buffer = tapeBufs[k]; g.gain.value = sfxVol * 0.6;
-      src.connect(g).connect(c.destination); src.start();
-    } catch (_) {}
-  }
 
   // Key feel: a pressed key holds its sunk render for at least 110 ms (a quick click still reads as a
   // press) and makes a soft mechanical click - a filtered noise tick over a low thump, synthesised, at the
