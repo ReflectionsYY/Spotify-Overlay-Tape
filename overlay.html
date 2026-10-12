@@ -108,11 +108,17 @@
      turn while the music plays - and the tape really winds across: the left pack shrinks and the right
      grows with the song, the smaller reel spinning faster. Beside it, a thick segmented LED line for
      the song's progress (click to jump), and the time left in 7-segment digits like a VCR counter. */
-  .tape { --hue: 270; display: flex; align-items: center; gap: 9px; height: 28px; }
+  .tape { --hue: 270; display: flex; align-items: center; gap: 9px; height: 38px; }
   .vhs { flex: none; overflow: visible; }
-  .vhs .ln { fill: none; stroke: hsl(var(--hue) 100% 72%); stroke-width: 1.3; stroke-linecap: round; filter: drop-shadow(0 0 1.6px hsl(var(--hue) 100% 60% / .85)); }
-  .vhs .dim { opacity: .45; }
-  .vhs .pack { fill: hsl(var(--hue) 90% 55% / .2); stroke: hsl(var(--hue) 100% 72% / .5); stroke-width: .8; transition: r 900ms linear; }
+  /* flat thin-line OP-1 look: white hubs and head, tape and packs in the globe's colour */
+  .vhs .flange { fill: none; stroke: rgba(255,255,255,.14); stroke-width: .7; stroke-dasharray: 1.4 1.6; }
+  .vhs .pack { fill: hsl(var(--hue) 90% 50% / .28); stroke: hsl(var(--hue) 100% 70%); stroke-width: 1; transition: r 900ms linear;
+    filter: drop-shadow(0 0 1.5px hsl(var(--hue) 100% 60% / .7)); }
+  .vhs .tapeline { fill: none; stroke: hsl(var(--hue) 100% 70%); stroke-width: 1; stroke-linejoin: round; }
+  .vhs .roller { fill: #0b0d12; stroke: rgba(255,255,255,.75); stroke-width: .8; }
+  .vhs .head { fill: rgba(255,255,255,.85); }
+  .vhs .hub { fill: #0b0d12; stroke: #fff; stroke-width: 1.1; }
+  .vhs .spoke { stroke: #fff; stroke-width: 1.1; stroke-linecap: round; }
   .vhs .reel { animation: reel var(--spin, 1.2s) linear infinite; animation-play-state: paused; }
   .tape.playing .reel { animation-play-state: running; }
   @keyframes reel { to { transform: rotate(360deg); } }
@@ -131,8 +137,12 @@
   button.hw { position: relative; width: 50px; height: 31px; border-radius: 3px; flex: none;
     background: var(--up) center / 100% 100% no-repeat, var(--down) 0 0 / 0 0 no-repeat;   /* 2nd layer preloads the pressed image */
     transition: none; }
-  button.hw:hover { background-color: transparent; filter: brightness(1.12); }
-  button.hw:active, button.hw.held, button.hw.latched { transform: none; background-image: var(--down); }
+  /* hover highlights the key (the generic button:hover background would otherwise wipe its image and show
+     the black slot); a faint glow in the globe's colour rims it */
+  button.hw:hover { background: var(--up) center / 100% 100% no-repeat; filter: brightness(1.22) contrast(1.04);
+    box-shadow: 0 0 0 1px hsl(var(--hue) 100% 70% / .35), 0 0 8px hsl(var(--hue) 100% 60% / .35); z-index: 1; }
+  button.hw:active, button.hw.held, button.hw.latched,
+  button.hw:hover:active, button.hw.held:hover, button.hw.latched:hover { transform: none; background: var(--down) center / 100% 100% no-repeat; }
   .hw .led { position: absolute; top: 4px; right: 5px; width: 4px; height: 4px; border-radius: 50%; background: rgba(0,0,0,.45); box-shadow: inset 0 1px 1px rgba(0,0,0,.6); }
   .shuf.on .led, #play.latched .led { background: hsl(var(--hue) 100% 64%); box-shadow: 0 0 4px hsl(var(--hue) 100% 60%), 0 0 1px #fff; }
   .mic.rec .led { background: #ff4b3a; box-shadow: 0 0 5px #ff4b3a; animation: pulse 1s ease-in-out infinite; }
@@ -189,14 +199,16 @@
       </div>
       <canvas id="wave"></canvas>
       <div class="tape" id="tape">
-        <svg class="vhs" viewBox="0 0 64 36" width="50" height="28" aria-hidden="true">
-          <rect class="ln" x="1" y="1" width="62" height="34" rx="3"/>
-          <rect class="ln dim" x="7" y="4.5" width="50" height="5" rx="1"/>
-          <rect class="ln" x="13" y="13" width="38" height="17" rx="2"/>
-          <circle class="pack" id="packL" cx="23" cy="21.5" r="6"/><circle class="pack" id="packR" cx="41" cy="21.5" r="3"/>
-          <g class="reel" id="reelL" style="transform-origin: 23px 21.5px"><circle class="ln" cx="23" cy="21.5" r="2.4"/><path class="ln" d="M23 19.1v4.8M20.6 21.5h4.8"/></g>
-          <g class="reel" id="reelR" style="transform-origin: 41px 21.5px"><circle class="ln" cx="41" cy="21.5" r="2.4"/><path class="ln" d="M41 19.1v4.8M38.6 21.5h4.8"/></g>
-          <path class="ln dim" d="M5 32.5h54"/>
+        <svg class="vhs" viewBox="0 0 84 30" width="106" height="38" aria-hidden="true">
+          <!-- OP-1 style tape: two open reels (no shell), the tape running off the bottom of each pack,
+               round two guide rollers and across the head -->
+          <circle class="flange" cx="14" cy="13" r="12.5"/><circle class="flange" cx="70" cy="13" r="12.5"/>
+          <circle class="pack" id="packL" cx="14" cy="13" r="10"/><circle class="pack" id="packR" cx="70" cy="13" r="5"/>
+          <path class="tapeline" id="tapePath" d=""/>
+          <circle class="roller" cx="29" cy="26.5" r="1.6"/><circle class="roller" cx="55" cy="26.5" r="1.6"/>
+          <rect class="head" x="38" y="25" width="8" height="4" rx="1"/>
+          <g class="reel" id="reelL" style="transform-origin: 14px 13px"><circle class="hub" cx="14" cy="13" r="3.4"/><path class="spoke" d="M14 13v-3.4M14 13l2.94 1.7M14 13l-2.94 1.7"/></g>
+          <g class="reel" id="reelR" style="transform-origin: 70px 13px"><circle class="hub" cx="70" cy="13" r="3.4"/><path class="spoke" d="M70 13v-3.4M70 13l2.94 1.7M70 13l-2.94 1.7"/></g>
         </svg>
         <div class="track" id="bar" title="Click to jump"><div class="fill" id="fill"></div></div>
         <div class="seg" id="tapeTime" title="Time left"></div>
@@ -238,8 +250,10 @@
     if (s === tapeLeft) return;
     tapeLeft = s;
     $('tapeTime').innerHTML = segText(fmt(s), 14);
-    const rL = 3 + 5.5 * (1 - p), rR = 3 + 5.5 * p;               // tape winds from the left pack onto the right
+    const rL = 4.5 + 7.5 * (1 - p), rR = 4.5 + 7.5 * p;           // tape winds from the left pack onto the right
     $('packL').setAttribute('r', rL.toFixed(2)); $('packR').setAttribute('r', rR.toFixed(2));
+    // the strand leaves the bottom of each pack, wraps the guide rollers and crosses the head
+    $('tapePath').setAttribute('d', `M${(14 + rL * 0.35).toFixed(2)} ${(13 + rL * 0.94).toFixed(2)} L29 28.1 L55 28.1 L${(70 - rR * 0.35).toFixed(2)} ${(13 + rR * 0.94).toFixed(2)}`);
     $('reelL').style.setProperty('--spin', (0.35 + rL * 0.12).toFixed(2) + 's');   // the smaller pack turns faster
     $('reelR').style.setProperty('--spin', (0.35 + rR * 0.12).toFixed(2) + 's');
   }
