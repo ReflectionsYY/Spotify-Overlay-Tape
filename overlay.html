@@ -111,6 +111,10 @@
   .tape { --hue: 270; display: flex; align-items: center; gap: 9px; height: 38px; }
   .vhs { flex: none; overflow: visible; }
   /* flat thin-line OP-1 look: white hubs and head, tape and packs in the globe's colour */
+  .vhs .shell { fill: none; stroke: rgba(255,255,255,.62); stroke-width: .8; stroke-linejoin: round; }
+  .vhs rect.shell:first-child { fill: hsl(var(--hue) 60% 50% / .05); }
+  .vhs .shell.dim { stroke: rgba(255,255,255,.3); }
+  .vhs .screw { fill: none; stroke: rgba(255,255,255,.45); stroke-width: .6; }
   .vhs .flange { fill: none; stroke: rgba(255,255,255,.14); stroke-width: .7; stroke-dasharray: 1.4 1.6; }
   .vhs .pack { fill: hsl(var(--hue) 90% 50% / .28); stroke: hsl(var(--hue) 100% 70%); stroke-width: 1; transition: r 900ms linear;
     filter: drop-shadow(0 0 1.5px hsl(var(--hue) 100% 60% / .7)); }
@@ -200,8 +204,14 @@
       <canvas id="wave"></canvas>
       <div class="tape" id="tape">
         <svg class="vhs" viewBox="0 0 84 30" width="106" height="38" aria-hidden="true">
-          <!-- OP-1 style tape: two open reels (no shell), the tape running off the bottom of each pack,
+          <!-- OP-1 style cassette: the shell outline (window between the reels, the angled tape slot along
+               the bottom edge, corner screws), two reels, and the tape running off the bottom of each pack,
                round two guide rollers and across the head -->
+          <rect class="shell" x=".6" y=".6" width="82.8" height="28.8" rx="2.6"/>
+          <path class="shell" d="M17 29.4 L21 23.6 L63 23.6 L67 29.4"/>
+          <rect class="shell dim" x="27" y="6.5" width="30" height="11" rx="1.6"/>
+          <circle class="screw" cx="3.4" cy="3.4" r=".9"/><circle class="screw" cx="80.6" cy="3.4" r=".9"/>
+          <circle class="screw" cx="3.4" cy="26.6" r=".9"/><circle class="screw" cx="80.6" cy="26.6" r=".9"/><circle class="screw" cx="42" cy="3.2" r=".9"/>
           <circle class="flange" cx="14" cy="13" r="12.5"/><circle class="flange" cx="70" cy="13" r="12.5"/>
           <circle class="pack" id="packL" cx="14" cy="13" r="10"/><circle class="pack" id="packR" cx="70" cy="13" r="5"/>
           <path class="tapeline" id="tapePath" d=""/>
