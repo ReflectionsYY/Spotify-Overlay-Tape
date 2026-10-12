@@ -31,7 +31,11 @@
                                 "sounds/open.wav",
                                 "sounds/close.wav",
                                 "media/stars-strip.mp4",
-                                "media/stars-globe.mp4"
+                                "media/stars-globe.mp4",
+                                "media/frame.png",
+                                "fonts/DSEG14Classic-Bold.woff2",
+                                "fonts/DSEG14Classic-Regular.woff2",
+                                "fonts/DSEG-LICENSE.txt"
                             ],
                   "extraResources":  [
                                          {

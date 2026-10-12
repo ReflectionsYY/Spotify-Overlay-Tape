@@ -55,34 +55,43 @@
   /* the now-playing box: title + artist over a little window of the Windows 98 starfield */
   /* the frame is a Blender-modelled gunmetal bezel (art/frame.py -> media/frame.png), 9-sliced so it
      fits any width: 48 px corners in the 2x image = 24 CSS px, the plain rim stretches between them */
-  .np { position: relative; overflow: hidden; isolation: isolate; display: flex; align-items: center; gap: 10px;
+  .np { --hue: 270; position: relative; overflow: hidden; isolation: isolate; display: flex; align-items: center; gap: 10px;
     border: 7px solid transparent; border-image: url(media/frame.png) 48 / 24px stretch; padding: 4px 8px 4px 10px; }
   .np-text { flex: 1; min-width: 0; }
   .np .stars { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; opacity: .9; pointer-events: none; border-radius: 4px; }
-  /* VHS on-screen-display volume meter: blue stepped bars that follow the volume slider, with tape grain,
-     a red/cyan colour fringe, faint scanlines and a tiny jitter, like a tape deck's OSD */
-  .meter { position: relative; flex: none; display: flex; align-items: flex-end; gap: 4px; height: 28px; padding: 1px 2px;
-    animation: vhs-jitter .23s steps(2) infinite; }
-  .meter .lbl { font: 700 9px/1 Consolas, "Courier New", monospace; letter-spacing: .08em; color: #7fd2ff; align-self: flex-start; margin-top: 1px;
-    text-shadow: -1px 0 rgba(255,50,90,.6), 1px 0 rgba(60,230,255,.6), 0 0 4px rgba(90,180,255,.8); }
+  /* VHS on-screen-display volume meter: stepped bars that follow the volume slider, in the globe's colour
+     (--hue, updated with it), with tape grain, a red/cyan colour fringe and faint scanlines. Every bar
+     except the first and last stutters on its own rhythm (random period and phase), like a worn tape */
+  .meter { position: relative; flex: none; display: flex; align-items: flex-end; gap: 4px; height: 28px; padding: 1px 2px; }
+  .meter .lbl { font: 700 9px/1 Consolas, "Courier New", monospace; letter-spacing: .08em; color: hsl(var(--hue) 100% 78%); align-self: flex-start; margin-top: 1px;
+    text-shadow: -1px 0 rgba(255,50,90,.6), 1px 0 rgba(60,230,255,.6), 0 0 4px hsl(var(--hue) 95% 60% / .8); }
   .meter .bars { display: flex; align-items: flex-end; gap: 2px; height: 100%; }
-  .meter i { width: 4px; background: rgba(70,150,255,.13); transition: background 90ms linear, box-shadow 90ms linear; }
-  .meter i.on { background: #2f86ff; box-shadow: -1px 0 rgba(255,50,90,.45), 1px 0 rgba(60,230,255,.55), 0 0 4px rgba(47,134,255,.8); }
-  .meter i.on.y { background: #3fbaff; }
-  .meter i.on.r { background: #a9ecff; box-shadow: -1px 0 rgba(255,50,90,.45), 1px 0 rgba(60,230,255,.55), 0 0 5px rgba(169,236,255,.9); }
+  .meter i { width: 4px; transform-origin: 50% 100%; background: hsl(var(--hue) 90% 60% / .13); transition: background 90ms linear, box-shadow 90ms linear; }
+  .meter i.on { background: hsl(var(--hue) 95% var(--l, 58%));
+    box-shadow: -1px 0 rgba(255,50,90,.45), 1px 0 rgba(60,230,255,.55), 0 0 4px hsl(var(--hue) 95% 60% / .8); }
+  .meter i.shake { animation: bar-stutter var(--d, .25s) steps(1) infinite; animation-delay: var(--o, 0s); }
+  @keyframes bar-stutter {
+    0% { transform: translate(0, 0) scaleY(1); } 22% { transform: translate(.6px, -.5px) scaleY(1.07); }
+    41% { transform: translate(-.4px, 0) scaleY(.94); } 63% { transform: translate(.2px, .4px) scaleY(1.03); }
+    82% { transform: translate(-.5px, -.3px) scaleY(.97); } }
   .meter.live i.on { filter: brightness(1.3); }
   .meter::after { content: ''; position: absolute; inset: -2px; pointer-events: none; mix-blend-mode: overlay; opacity: .55;
     background: repeating-linear-gradient(0deg, rgba(0,0,0,.35) 0 1px, transparent 1px 2px),
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)'/%3E%3C/svg%3E");
     animation: vhs-grain .3s steps(3) infinite; }
-  @keyframes vhs-jitter { 0% { transform: translate(0, 0); } 25% { transform: translate(.4px, -.3px); } 50% { transform: translate(-.3px, .2px); } 75% { transform: translate(.2px, .4px); } }
   @keyframes vhs-grain { 0% { background-position: 0 0, 0 0; } 33% { background-position: 0 1px, -17px 9px; } 66% { background-position: 0 0, 23px -14px; } }
   /* 90s alarm-clock time, between the song and the meter */
   .npclock { flex: none; display: flex; align-items: center; gap: 1px; }
   .np::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
     background: linear-gradient(90deg, rgba(6,8,16,.55), rgba(6,8,16,.15) 55%, rgba(6,8,16,.35)); }
-  .title { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 6px #000, 0 0 2px #000; }
-  .artist { font-size: 13px; color: #b9bfd0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 5px #000; }
+  /* DSEG14 Classic (SIL OFL 1.1, fonts/DSEG-LICENSE.txt): a 14-segment alarm-clock display font. It only
+     has capitals, so the box text is uppercased; anything it lacks falls back to the UI font. */
+  @font-face { font-family: 'DSEG14'; src: url(fonts/DSEG14Classic-Bold.woff2) format('woff2'); font-weight: 700; }
+  @font-face { font-family: 'DSEG14'; src: url(fonts/DSEG14Classic-Regular.woff2) format('woff2'); font-weight: 400; }
+  .title { font: 700 14px/1.35 'DSEG14', "Segoe UI", sans-serif; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: hsl(var(--hue) 100% 88%); text-shadow: 0 0 6px hsl(var(--hue) 95% 55% / .75), 0 1px 4px #000; }
+  .artist { font: 400 10.5px/1.5 'DSEG14', "Segoe UI", sans-serif; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: hsl(var(--hue) 70% 74%); text-shadow: 0 0 5px hsl(var(--hue) 95% 50% / .6), 0 1px 4px #000; }
   .artist.link { cursor: pointer; } .artist.link:hover { color: #fff; text-decoration: underline; text-underline-offset: 2px; }
   /* long titles drift sideways so the whole name gets read (pauses at each end) */
   .title.marquee { text-overflow: clip; }
@@ -122,13 +131,13 @@
   /* 90s alarm-clock time: red 7-segment LEDs (drawn as SVG, unlit segments ghosted) */
   .seg { display: flex; gap: 2px; align-items: flex-end; }
   .seg svg { display: block; overflow: visible; }
-  .seg .off { fill: rgba(255,60,40,.09); }
-  .seg .on { fill: #ff3b2a; filter: drop-shadow(0 0 2px rgba(255,59,42,.9)); }
+  .seg .off { fill: hsl(var(--hue) 90% 60% / .10); }
+  .seg .on { fill: hsl(var(--hue) 100% 66%); filter: drop-shadow(0 0 2px hsl(var(--hue) 100% 60% / .9)); }
   .seg .colon { animation: blink 1s steps(2, start) infinite; }
   @keyframes blink { to { visibility: hidden; } }
   .ampm { display: flex; flex-direction: column; gap: 1px; font: 700 7px/1 Consolas, monospace; margin-left: 2px; }
-  .ampm b { color: rgba(255,60,40,.22); font-weight: 700; }
-  .ampm b.lit { color: #ff3b2a; text-shadow: 0 0 3px rgba(255,59,42,.9); }
+  .ampm b { color: hsl(var(--hue) 90% 60% / .22); font-weight: 700; }
+  .ampm b.lit { color: hsl(var(--hue) 100% 66%); text-shadow: 0 0 3px hsl(var(--hue) 100% 60% / .9); }
 </style>
 </head>
 <body>
@@ -238,8 +247,9 @@
       if (Math.abs(v.playbackRate - starRate) > 0.04) v.playbackRate = starRate;
       if (starHue === null || Math.abs(hue - starHue) > 3) v.style.filter = `sepia(.5) saturate(2.4) hue-rotate(${hue}deg) brightness(1.15)`;
     }
-    if (starHue === null || Math.abs(hue - starHue) > 3) starHue = hue;
+    if (starHue === null || Math.abs(hue - starHue) > 3) { starHue = hue; npBox.style.setProperty('--hue', Math.round(react.hue)); }  // clock, meter, title follow the globe
   }
+  const npBox = document.querySelector('.np');
   function starsPlay(on) { for (const v of stars) { if (on) v.play().catch(() => {}); else v.pause(); } }
 
   // ---------------------------------------------------------------- title (drifts sideways when it doesn't fit)
@@ -418,7 +428,12 @@
   for (let k = 0; k < METER_BARS; k++) {
     const b = document.createElement('i');
     b.style.height = Math.round(6 + (k / (METER_BARS - 1)) * 24) + 'px';
-    if (k >= METER_BARS - 2) b.classList.add('r'); else if (k >= METER_BARS - 4) b.classList.add('y');
+    b.style.setProperty('--l', Math.round(46 + (k / (METER_BARS - 1)) * 34) + '%');   // brighter toward the top
+    if (k > 0 && k < METER_BARS - 1) {          // the ends hold still; the middle bars stutter on their own
+      b.classList.add('shake');
+      b.style.setProperty('--d', (0.17 + Math.random() * 0.22).toFixed(2) + 's');
+      b.style.setProperty('--o', (-Math.random()).toFixed(2) + 's');
+    }
     $('meterBars').appendChild(b);
   }
   function setMeter(v, live) {
