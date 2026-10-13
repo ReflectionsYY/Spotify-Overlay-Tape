@@ -28,11 +28,18 @@ static class SpotifyOverlayWatcher
         }
     }
 
+    // The desktop app, or Spotify's Xbox Game Bar widget (which plays music without the desktop app running).
+    static readonly string[] SpotifyProcesses = { "Spotify", "SpotifyXboxGamebarWebView" };
+
     static bool SpotifyRunning()
     {
-        var found = Process.GetProcessesByName("Spotify");
-        foreach (var p in found) p.Dispose();
-        return found.Length > 0;
+        foreach (var name in SpotifyProcesses)
+        {
+            var found = Process.GetProcessesByName(name);
+            foreach (var p in found) p.Dispose();
+            if (found.Length > 0) return true;
+        }
+        return false;
     }
 
     // The overlay is single-instance: "background" starts it in the tray (or does nothing if it is already running),
