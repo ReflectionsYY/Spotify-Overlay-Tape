@@ -294,10 +294,34 @@ function openSettings() {
   setWin.loadFile('settings.html');
   setWin.on('closed', () => { setWin = null; });
 }
+// Games like League of Legends switch off normal Windows hotkeys while they have focus, so the hotkey is also caught by
+// a tiny low-level key listener (watcher/SpotifyOverlayKeys.exe) that sees keys inside games and passes them on
+// untouched. Both paths call pressHotkey(); the short guard stops one press counting twice outside a game.
+const KEYS_EXE = path.join(__dirname, 'watcher', 'SpotifyOverlayKeys.exe').replace('app.asar', 'app.asar.unpacked');
+let keysProc = null, lastPress = 0;
+function pressHotkey() { const now = Date.now(); if (now - lastPress < 300) return; lastPress = now; toggle(); }
+function hotkeyToVk(accel) {   // 'F8', 'Ctrl+Shift+P' ... -> [vk, ...modifiers], or null if the listener can't express it
+  const parts = String(accel).split('+').map((p) => p.trim().toLowerCase()), k = parts.pop(), mods = [];
+  for (const p of parts) { if (/^(ctrl|control|commandorcontrol|cmdorctrl)$/.test(p)) mods.push('ctrl'); else if (p === 'alt') mods.push('alt'); else if (p === 'shift') mods.push('shift'); else return null; }
+  let vk = null; const f = /^f([1-9]|1\d|2[0-4])$/.exec(k);
+  if (f) vk = 0x6f + Number(f[1]); else if (/^[a-z0-9]$/.test(k)) vk = k.toUpperCase().charCodeAt(0);
+  return vk === null ? null : [vk, ...mods];
+}
+function startKeyListener(accel) {
+  if (keysProc) { try { keysProc.kill(); } catch (_) {} keysProc = null; }
+  const v = hotkeyToVk(accel);
+  if (!v || !fs.existsSync(KEYS_EXE)) return;
+  const p = spawn(KEYS_EXE, v.map(String), { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+  keysProc = p;
+  let buf = '';
+  p.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { if (buf.slice(0, i).trim() === 'hotkey') pressHotkey(); buf = buf.slice(i + 1); } });
+  p.on('exit', () => { if (keysProc === p) keysProc = null; });
+}
 function registerHotkey(key) {
   globalShortcut.unregisterAll();
-  let ok = false; try { ok = globalShortcut.register(key, toggle); } catch (_) {}
-  if (!ok && key !== 'F8') globalShortcut.register('F8', toggle);
+  let ok = false; try { ok = globalShortcut.register(key, pressHotkey); } catch (_) {}
+  if (!ok && key !== 'F8') globalShortcut.register('F8', pressHotkey);
+  startKeyListener(ok ? key : 'F8');
   return ok;
 }
 function buildTray() {
@@ -406,4 +430,4 @@ app.on('second-instance', (_e, argv) => {
   else show();
 });
 app.on('window-all-closed', () => {});   // keep running in the tray
-app.on('will-quit', () => { globalShortcut.unregisterAll(); if (helper) { write('quit'); } });
+app.on('will-quit', () => { globalShortcut.unregisterAll(); if (keysProc) { try { keysProc.kill(); } catch (_) {} } if (helper) { write('quit'); } });
