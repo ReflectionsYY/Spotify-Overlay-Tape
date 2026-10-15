@@ -10,7 +10,7 @@ if (process.argv.includes('quit-now')) { app.quit(); return; }   // the watcher 
 app.setAppUserModelId('com.collin.spotifyoverlay');
 
 const DATA = app.getPath('userData'), CFG_FILE = path.join(DATA, 'settings.json');
-const DEFAULTS = { hotkey: 'F8', clientId: '', autoHideSeconds: 8, position: 'top-center', showPlaylists: true, intensity: 1, claudeVoice: true, sfxVolume: 0.35, colorFromArt: true,
+const DEFAULTS = { hotkey: 'F8', clientId: '', autoHideSeconds: 8, position: 'top-center', showPlaylists: true, intensity: 1, claudeVoice: false, sfxVolume: 0.35, colorFromArt: true,
   corner: { enabled: false, corner: 'top-right', size: 180, opacity: 0.9, onlyWhilePlaying: true } };
 const cfg = (() => { let saved = {}; try { saved = JSON.parse(fs.readFileSync(CFG_FILE, 'utf8')); } catch (_) {}
   return Object.assign({}, DEFAULTS, saved, { corner: Object.assign({}, DEFAULTS.corner, saved.corner || {}) }); })();
