@@ -4,6 +4,8 @@ Press **F8** in any game and a small tape-deck overlay drops in with what's play
 
 It's made for gaming: the hotkey works inside games that block normal Windows hotkeys (League of Legends, for example), and keys you press still reach the game.
 
+> **Set your game to Borderless (Windowed Fullscreen).** The overlay can't draw on top of a game in exclusive Fullscreen mode, because Windows gives that game the whole screen. In the game's video settings, pick **Borderless** / **Windowed Fullscreen** / **Fullscreen Windowed** (the name varies by game).
+
 ## Download
 
 Grab **`Spotify.Overlay.1.0.0.exe`** from the [latest release](../../releases/latest). It's a portable app, so there's nothing to install: put it anywhere and double-click it.
