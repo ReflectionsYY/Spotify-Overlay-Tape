@@ -6,7 +6,7 @@ It's made for gaming: the hotkey works inside games that block normal Windows ho
 
 ## Download
 
-Grab **`Spotify Overlay 1.0.0.exe`** from the [latest release](../../releases/latest). It's a portable app, so there's nothing to install: put it anywhere and double-click it.
+Grab **`Spotify.Overlay.1.0.0.exe`** from the [latest release](../../releases/latest). It's a portable app, so there's nothing to install: put it anywhere and double-click it.
 
 Windows may show a SmartScreen warning the first time, because the app isn't code-signed. Click **More info → Run anyway**.
 
